@@ -9,7 +9,7 @@
 
 ## Soal 1: Perancangan Subnetting VLSM (`192.238.0.0/21`)
 
-## 1. Analisis Kebutuhan & Aturan Alokasi
+### 1. Analisis Kebutuhan & Aturan Alokasi
 
 * **Blok IP Induk:** `192.238.0.0/21` (Rentang `192.238.0.0` – `192.238.7.255`, total $2.048$ alamat IP).
 
@@ -19,7 +19,7 @@
 
 * **Aturan Penomoran Node:** Gateway menggunakan alamat IP *usable* pertama pada subnet, sedangkan host menggunakan alamat IP *usable* berikutnya secara berurutan dari kiri ke kanan sesuai topologi.
 
-## 2. Tabel Pembagian Subnet VLSM dan Pohon IP
+### 2. Tabel Pembagian Subnet VLSM dan Pohon IP
 
 Tabel VLSM: 
 
@@ -29,7 +29,7 @@ Gambar Pohon IP:
 
 <img width="1772" height="4776" alt="pohon_vlsm_192 238 0 0" src="https://github.com/user-attachments/assets/663511e7-19ce-404e-8b39-ec1cb2f126d9" />
 
-## 3. Penjelasan Perhitungan Satu Subnet (Studi Kasus: `Switch-Quarters`)
+### 3. Penjelasan Perhitungan Satu Subnet (Studi Kasus: `Switch-Quarters`)
 
 Sebagai ilustrasi metode perhitungan VLSM yang diterapkan pada seluruh tabel, berikut rincian perhitungan pada segmen **Switch-Quarters**:
 
@@ -81,7 +81,7 @@ Sebagai ilustrasi metode perhitungan VLSM yang diterapkan pada seluruh tabel, be
 
      * **Sisa IP Usable:** $510 - 501 = 9\text{ IP}$.
 
-## 4. Pohon Alokasi IP & Jalur Dummy-Plug ke Armisael
+### 4. Pohon Alokasi IP & Jalur Dummy-Plug ke Armisael
 
 Pada diagram pohon biner di atas, lima subnet yang membentuk jalur paket dari **Dummy-Plug** (`Switch-Lab`) menuju **Armisael** (`Switch-Monolith`) ditandai dengan lingkaran merah:
 
@@ -94,3 +94,73 @@ Pada diagram pohon biner di atas, lima subnet yang membentuk jalur paket dari **
 4. `192.238.4.152/30` (**Link Gendou – Shigeru**)
 
 5. `192.238.4.80/29` (**Switch-Monolith** — tujuan `Armisael`)
+
+## Soal 2
+
+### Pengujian 
+
+1. Cek status IP & Interface di tiap router:
+
+   ```
+    ip -br a
+   ```
+
+   - Gendou
+
+     <img width="863" height="331" alt="image" src="https://github.com/user-attachments/assets/3c47496d-70a1-49ac-a5ce-154ddefe2dbb" />
+
+   - Yui
+  
+     <img width="726" height="197" alt="image" src="https://github.com/user-attachments/assets/cafe4e71-2046-40d5-ab32-51ea349f2964" />
+
+   - Fuyutsuki
+  
+     <img width="725" height="168" alt="image" src="https://github.com/user-attachments/assets/2718ddd5-7ba5-4665-bc0d-99ad950d4f56" />
+
+2. Uji ping ke seluruh 16 link router-ke-router (pakai loop satu baris):
+
+  - Gendou ( Uji ke 7 link router cabang utama)
+
+    ```
+      for ip in 192.238.4.110 192.238.4.126 192.238.4.134 192.238.4.146 192.238.4.150 192.238.4.154 192.238.4.162; do ping -c 2 -W 1 $ip; done
+    ```
+
+    <img width="1060" height="471" alt="image" src="https://github.com/user-attachments/assets/9312e641-2e88-4618-b83f-f554173d3aff" />
+    
+    <img width="1055" height="587" alt="image" src="https://github.com/user-attachments/assets/92561487-72f0-4398-a97b-86b167986373" />
+
+    <img width="1058" height="279" alt="image" src="https://github.com/user-attachments/assets/63bd8d81-d940-4c63-9d75-d8414e1964fb" />
+
+
+  - Yui ( Uji link ke Mari, Rei, Shinji)
+
+    ```
+      for ip in 192.238.4.114 192.238.4.118 192.238.4.122; do ping -c 2 -W 1 $ip; done
+    ```
+
+    <img width="1011" height="571" alt="image" src="https://github.com/user-attachments/assets/9ce67002-a9ab-4dcd-bd01-041fb4bc5cb0" />
+
+  - Hikari ( uji link ke Kaworu)
+
+    ```
+      ping -c 2 192.238.4.130
+    ```
+
+    <img width="915" height="196" alt="image" src="https://github.com/user-attachments/assets/6df61c6a-0061-401a-b0e4-a5df58fc5a6a" />
+
+  - Asuka (Uji 2 link ke Kensuke & Ritsuko)
+
+    ```
+      for ip in 192.238.4.138 192.238.4.142; do ping -c 2 -W 1 $ip; done
+    ```
+
+    <img width="890" height="381" alt="image" src="https://github.com/user-attachments/assets/f1c5a472-cd54-49af-bcb4-64b269595d80" />
+
+
+
+
+
+
+     
+  
+     
