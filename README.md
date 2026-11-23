@@ -156,6 +156,80 @@ Pada diagram pohon biner di atas, lima subnet yang membentuk jalur paket dari **
 
     <img width="890" height="381" alt="image" src="https://github.com/user-attachments/assets/f1c5a472-cd54-49af-bcb4-64b269595d80" />
 
+## Soal 3
+
+### Pengujian 
+
+1. Cek tabel routing
+
+   ```
+    ip route
+    ping -c 3 8.8.8.8
+   ```
+
+   - Gendou
+
+   <img width="1058" height="623" alt="image" src="https://github.com/user-attachments/assets/0fd3a0f0-a2de-429a-a201-cfb789edb28a" />
+
+   <img width="1056" height="490" alt="image" src="https://github.com/user-attachments/assets/d389d812-24a4-4264-9dc8-3d644383c6dd" />
+
+   - Yui
+  
+     <img width="927" height="161" alt="image" src="https://github.com/user-attachments/assets/d7eb1acc-b570-433a-8aa4-38fc60848a85" />
+
+   - Shigeru
+  
+     <img width="994" height="112" alt="image" src="https://github.com/user-attachments/assets/44384bff-136a-4204-ab28-5ef5293016a6" />
+
+2. Pasang  IP sementara pada 5 host uji dari cabang yang berjauhan:
+
+   - Armisael (Cabang Shigeru — menguji summary 192.238.4.80/28)
+     
+     ```
+      ip addr flush dev eth0 && ip addr add 192.238.4.83/29 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.4.81
+     ```
+
+   - Quarters
+  
+     ```
+      ip addr flush dev eth0 && ip addr add 192.238.0.2/23 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.0.1
+     ```
+
+   - Lilith
+  
+     ```
+      ip addr flush dev eth0 && ip addr add 192.238.4.74/29 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.4.73
+     ```
+
+   - Sachiel
+  
+     ```
+      ip addr flush dev eth0 && ip addr add 192.238.3.130/26 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.3.129
+     ```
+
+   - Comm-Net
+  
+     ```
+      ip addr flush dev eth0 && ip addr add 192.238.2.2/24 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.2.1
+     ```
+     
+3. Uji ping lintas cabang dari Armisael:
+
+   ```
+    for ip in 192.238.0.2 192.238.4.74 192.238.3.130 192.238.2.2; do ping -c 3 $ip; done
+   ```
+
+   <img width="1060" height="547" alt="image" src="https://github.com/user-attachments/assets/6ef86d57-4c32-4cde-825e-14b2f86c23be" />
+
+   <img width="1058" height="317" alt="image" src="https://github.com/user-attachments/assets/d2a41cdc-b0b2-4bd5-b1c2-6c26ebcc7daa" />
+
+
+
+
+
+
+
+
 
 
 
