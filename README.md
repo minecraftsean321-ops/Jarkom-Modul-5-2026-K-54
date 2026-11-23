@@ -19,7 +19,7 @@
 
 * **Aturan Penomoran Node:** Gateway menggunakan alamat IP *usable* pertama pada subnet, sedangkan host menggunakan alamat IP *usable* berikutnya secara berurutan dari kiri ke kanan sesuai topologi.
 
-## Tabel Pembagian Subnet VLSM dan Pohon IP
+## 2. Tabel Pembagian Subnet VLSM dan Pohon IP
 
 Tabel VLSM: 
 
