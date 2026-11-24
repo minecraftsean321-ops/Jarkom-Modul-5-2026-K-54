@@ -450,6 +450,19 @@ ss -tlnp | grep nc
 
 <img width="1063" height="136" alt="image" src="https://github.com/user-attachments/assets/74c9cd73-1906-4387-97f0-2313b8f0ccf9" />
 
+### Pengujian 
+
+Jalankan pengujian berikut di Lilith untuk membuktikan port yang terbuka langsung membalas dan port yang menutup langsung ditolak:
+
+```
+nc -v 192.238.3.194 80
+nc -v 192.238.4.106 80
+nc -v 192.238.4.106 8080
+nc -v 192.238.3.194 22
+nc -v 192.238.4.106 22
+```
+
+<img width="978" height="435" alt="image" src="https://github.com/user-attachments/assets/2406a845-4737-4b3a-9168-8ec738fec44c" />
 
 
 
