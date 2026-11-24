@@ -279,6 +279,49 @@ Pada diagram pohon biner di atas, lima subnet yang membentuk jalur paket dari **
 
 ## Soal 5 
 
+### Langkah 1: Tambahkan aturan Firewall ke Gendou 
+
+Masukkan script ini ke Gendou:
+
+```
+  # 1. Pastikan flag tanggal apt-get di gendo.sh aman saat GNS3 restart
+  sed -i 's|apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y isc-dhcp-server|apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true \&\& DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated isc-dhcp-server|' /root/gendo.sh
+  
+  # 2. Hapus blok Soal 5 lama (jika skrip dijalankan ulang) lalu append aturan Soal 5
+  sed -i '/# === SOAL 5: FIREWALL ===/,$d' /root/gendo.sh
+  cat << 'EOF' >> /root/gendo.sh
+  
+  # === SOAL 5: FIREWALL ===
+  # Reset filter table & set policy: boleh keluar (OUTPUT ACCEPT), tidak boleh dimasuki (INPUT & FORWARD DROP)
+  iptables -F
+  iptables -X
+  iptables -P INPUT DROP
+  iptables -P FORWARD DROP
+  iptables -P OUTPUT ACCEPT
+  
+  # Izinkan Loopback dan DHCP dari NAT1 (eth0)
+  iptables -A INPUT -i lo -j ACCEPT
+  iptables -A INPUT -i eth0 -p udp --sport 67 --dport 68 -j ACCEPT
+  
+  # (a) Izinkan balasan koneksi yang sudah ada (ESTABLISHED, RELATED)
+  iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  
+  # (b) Izinkan traffic dari jaringan internal (192.238.0.0/21) ke internet (eth0)
+  iptables -A FORWARD ! -i eth0 -s 192.238.0.0/21 -o eth0 -j ACCEPT
+  
+  # (c) Izinkan traffic antar-LAN di dalam jaringan internal
+  iptables -A FORWARD ! -i eth0 ! -o eth0 -s 192.238.0.0/21 -d 192.238.0.0/21 -j ACCEPT
+  
+  # (d) Izinkan traffic dari jaringan internal ke Gendo sendiri (termasuk DHCP internal)
+  iptables -A INPUT ! -i eth0 -s 192.238.0.0/21 -j ACCEPT
+  iptables -A INPUT ! -i eth0 -p udp --dport 67 -j ACCEPT
+  EOF
+  
+  # 3. Jalankan gendo.sh untuk menerapkan firewall sekaligus memastikan DHCP & NAT tetap aktif
+  bash /root/gendo.sh
+```
+
 ### Pengujian 
 
 1. Cek aturan firewall dan default policy pada INPUT & FORWARD di Gendou
