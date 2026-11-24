@@ -343,6 +343,50 @@ Masukkan script ini ke Gendou:
    <img width="982" height="489" alt="image" src="https://github.com/user-attachments/assets/df5de829-3b03-47ec-9c2a-9c2b3490f97b" />
 
 
+## Soal 6 
+
+Gunakan script ini untuknode Unit-01:
+
+```
+printf 'auto lo\niface lo inet loopback\n\nauto eth0\niface eth0 inet static\n    address 192.238.4.66\n    netmask 255.255.255.248\n    gateway 192.238.4.65\n' > /etc/network/interfaces && printf '#!/bin/sh\npkill udhcpc 2>/dev/null\nip addr flush dev eth0\nip addr add 192.238.4.66/29 dev eth0\nip link set eth0 up\nip route replace default via 192.238.4.65\necho "nameserver 8.8.8.8" > /etc/resolv.conf\n' > /root/ip.sh && chmod +x /root/ip.sh && touch /root/.bashrc && sed -i '/# === AUTOSTART/,$d' /etc/profile /root/.bashrc && printf '\n# === AUTOSTART STATIC IP ===\n[ -f /root/ip.sh ] && sh /root/ip.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null && sh /root/ip.sh
+```
+
+### Pengujian 
+
+  - Unit-01
+
+    ```
+      ip -br a
+      ip route
+      ping -c 3 192.238.4.65
+      cat /etc/network/interfaces
+    ```
+    <img width="1058" height="633" alt="image" src="https://github.com/user-attachments/assets/29a197ff-a4a5-4342-87a8-ca0af7039281" />
+
+  - Tokyo-Core3
+
+    ```
+      ip -br a
+      ip route
+      ping -c 3 192.238.4.105
+      cat /etc/network/interfaces
+    ```
+    
+    <img width="945" height="626" alt="image" src="https://github.com/user-attachments/assets/8cc47737-0f9a-4317-8630-ca474020b3e8" />
+
+  - Magi-Casper
+
+    ```
+      ip -br a
+      ip route
+      ping -c 3 192.238.4.57
+      cat /etc/network/interfaces
+    ```
+
+    <img width="1064" height="624" alt="image" src="https://github.com/user-attachments/assets/6c72ba03-aad3-4315-aa9e-5259e64a5fab" />
+
+
+
 
 
 
