@@ -497,6 +497,65 @@ rm -f /tmp/break_routing.sh
 
 ### Langkah 3: Ambil diagnosa di node Shigeru 
 
+```
+sysctl net.ipv4.ip_forward
+ip -br a
+ip route
+ip rule
+iptables -S
+```
+
+<img width="985" height="513" alt="image" src="https://github.com/user-attachments/assets/e31afac2-2acd-4349-8881-839d2c8a2cd5" />
+
+Dari foto tersebut kita bisa melihat ada 4 kerusakan yang disebabkan oleh break_routing.sh 
+
+1. IP Fowarding dimatikan: Sehingga kernel Shigeru menolak untuk meneruskan paket lintas interface, jadi paket ping dari Lilith yang masuk lewat eth0 tidak diteruskan ke subnet Armisael.
+2. Policy Routing Jebakan (90: from all iif eth1 lookup 100): Terdapat aturan policy routing berprioritas tinggi (90, dieksekusi sebelum tabel main di prioritas 32766) yang memaksa seluruh trafik masuk dari LAN eth1 membaca tabel routing 100 (berisi rute unreachable), sehingga paket dari Armisael langsung digagalkan sebelum sempat membaca tabel routing utama.
+3. Rute Blackhole ke Subnet Lilith (blackhole 192.238.4.72/29): Ditambahkan rute blackhole khusus mengarah ke segmen jaringan 192.238.4.72/29 (tempat Lilith 192.238.4.75 berada), yang membuat setiap paket balasan dari Armisael menuju Lilith langsung dibuang secara diam-diam oleh Shigeru.
+4. Rute Blackhole ke Subnet Lilith (blackhole 192.238.4.72/29): Ditambahkan rute blackhole khusus mengarah ke segmen jaringan 192.238.4.72/29 (tempat Lilith 192.238.4.75 berada), yang membuat setiap paket balasan dari Armisael menuju Lilith langsung dibuang secara diam-diam oleh Shigeru.
+
+### Langkah 4: Perbaikan dan Auto-Start saat restart di Shigeru
+
+```
+# 1. Perbaiki langsung kondisi jaringan Shigeru saat ini
+sysctl -w net.ipv4.ip_forward=1
+ip rule del iif eth1 lookup 100 priority 90 2>/dev/null
+ip route flush table 100 2>/dev/null
+ip route del blackhole 192.238.4.72/29 2>/dev/null
+ip route replace default via 192.238.4.153 dev eth0
+
+# 2. Simpan ke /root/route.sh agar otomatis terjaga saat GNS3 restart (tanpa menimpa Soal 2-8)
+sed -i '/# === FIX SOAL 9 ===/,$d' /root/route.sh
+cat << 'EOF' >> /root/route.sh
+
+# === FIX SOAL 9 ===
+sysctl -w net.ipv4.ip_forward=1 >/dev/null
+ip rule del iif eth1 lookup 100 priority 90 2>/dev/null
+ip route flush table 100 2>/dev/null
+ip route del blackhole 192.238.4.72/29 2>/dev/null
+ip route replace default via 192.238.4.153 dev eth0
+EOF
+```
+
+### Langkah 5: Verifikasi & Bukti perbaikan 
+
+1. Membuktikan bahwa IP Fowarding sudah berjalan, blackhole hilang dan ip rule bersih
+
+   ```
+    sysctl net.ipv4.ip_forward
+    ip route
+    ip rule
+   ```
+
+   <img width="903" height="323" alt="image" src="https://github.com/user-attachments/assets/eed852a8-a83b-48e3-a115-d7842c3a379c" />
+
+2. Membuktikan bahwa Lilith bisa kembali ping ke Armisael
+
+   ```
+    ping -c 3 192.238.4.83
+   ```
+
+   <img width="886" height="245" alt="image" src="https://github.com/user-attachments/assets/88dc59ae-90cf-4da8-a054-922f312e0490" />
 
   
 
