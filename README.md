@@ -464,7 +464,41 @@ nc -v 192.238.4.106 22
 
 <img width="978" height="435" alt="image" src="https://github.com/user-attachments/assets/2406a845-4737-4b3a-9168-8ec738fec44c" />
 
+## Soal 9 
 
+### Langkah 1: Donwload dan jalankan file break_routing.sh di Shigeru
+
+```
+URL="https://drive.google.com/file/d/1ub7LjL2BdZdVq6n_AbuqcO416Z8QJGVs/view"
+ID=$(echo "$URL" | sed -E 's|.*/d/([^/?&]+).*|\1|; s|.*[?&]id=([^&]+).*|\1|')
+rm -f /tmp/break_routing.sh
+(wget --no-check-certificate -qO /tmp/break_routing.sh "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" || curl -kfsSL "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" -o /tmp/break_routing.sh) && sed -i 's/\r$//' /tmp/break_routing.sh && [ "$(head -n 1 /tmp/break_routing.sh)" = '#!/bin/sh' ] && sh /tmp/break_routing.sh
+```
+
+### Langkah 2: Uji gejala sabotase (Lilith & Armisael)
+
+- Lilith
+
+  ```
+    ping -c 3 192.238.4.83
+  ```
+
+  <img width="905" height="162" alt="image" src="https://github.com/user-attachments/assets/e4f66bb5-b738-41de-8cdd-4ba4cb37663f" />
+  
+- Armisael
+
+  ```
+    ping -c 2 192.238.4.81
+  ```
+
+  <img width="922" height="219" alt="image" src="https://github.com/user-attachments/assets/d5d5da07-b3cc-441a-a5d1-6a35e787bf6e" />
+
+  Ping Armisael berhasil karena masih dalam satu LAN dengan Shigeru, sedangkan paket dari Lilith perlu diteruskan lintas interface oleh Shigeru dan dirutekan kembali ke Switch-Dogma sehingga tidak berhasil karena jalur lintas jaringan inilah yang dilumpuhkan oleh break_routing.sh.
+
+### Langkah 3: Ambil diagnosa di node Shigeru 
+
+
+  
 
 
 
