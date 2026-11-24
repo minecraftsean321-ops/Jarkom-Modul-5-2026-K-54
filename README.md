@@ -385,6 +385,73 @@ printf 'auto lo\niface lo inet loopback\n\nauto eth0\niface eth0 inet static\n  
 
     <img width="1064" height="624" alt="image" src="https://github.com/user-attachments/assets/6c72ba03-aad3-4315-aa9e-5259e64a5fab" />
 
+## Soal 7 
+
+### Langkah 1: Pasang skrip & Nyalakan Listener di Ketiga Node MAGI
+
+### Langkah 2: Kirim Pesan dari Lilith 
+
+<img width="1060" height="220" alt="image" src="https://github.com/user-attachments/assets/8bc2be94-902c-4efc-8052-e013149d0919" />
+
+### Pengujian 
+
+  - Magi-Casper
+
+    ```
+      ss -tlnp | grep nc
+      cat /tmp/casper_5000.log
+    ```
+
+    <img width="1055" height="134" alt="image" src="https://github.com/user-attachments/assets/7214f3b2-038c-4432-aab4-cdf85a809f8b" />
+
+  - Magi-Balthasar
+
+    ```
+      ss -tlnp | grep nc
+      cat /tmp/balthasar_5000.log
+      cat /tmp/balthasar_5001.log
+    ```
+
+    <img width="1059" height="243" alt="image" src="https://github.com/user-attachments/assets/1efdfdf2-a5c4-483b-a8bf-3c94a314f289" />
+
+
+  - Magi-Melchior
+
+    ```
+      ss -tlnp | grep nc
+      cat /tmp/melchior_5000.log
+    ```
+
+    <img width="1060" height="134" alt="image" src="https://github.com/user-attachments/assets/642fab33-0321-4e1d-97ec-c6df0a056d7c" />
+
+## Soal 8 
+
+### Langkah 1: Konfigurasi Listener di Pen-Pen 
+
+```
+printf '#!/bin/bash\n[ -f /root/ip.sh ] && sh /root/ip.sh\nif ! command -v nc.traditional >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then\n  apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true\n  DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated iptables netcat-traditional\n  update-alternatives --set nc /bin/nc.traditional 2>/dev/null || true\nfi\nif ! pgrep -f "[n]c.traditional -l -p 80 " >/dev/null 2>&1; then\n  nohup sh -c '\''while true; do nc.traditional -l -p 80 -c "echo Welcome to $(hostname)"; done'\'' >/dev/null 2>&1 &\nfi\n' > /root/penpen.sh && chmod +x /root/penpen.sh && touch /root/.bashrc && sed -i '/# === AUTOSTART SERVICE ===/,$d' /etc/profile /root/.bashrc && printf '\n# === AUTOSTART SERVICE ===\n[ -f /root/penpen.sh ] && bash /root/penpen.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null && bash /root/penpen.sh
+```
+
+<img width="1062" height="84" alt="image" src="https://github.com/user-attachments/assets/b735d440-93f4-4a69-be12-6d7c26e21de4" />
+
+### Langkah 2: Konfigurasi Listener di Tokyo3-Core
+
+Jalankan perintah satu baris berikut untuk menayalakan port 80 dan 8080:
+
+```
+printf '#!/bin/bash\n[ -f /root/ip.sh ] && sh /root/ip.sh\nif ! command -v nc.traditional >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then\n  apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true\n  DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated iptables netcat-traditional\n  update-alternatives --set nc /bin/nc.traditional 2>/dev/null || true\nfi\nif ! pgrep -f "[n]c.traditional -l -p 80 " >/dev/null 2>&1; then\n  nohup sh -c '\''while true; do nc.traditional -l -p 80 -c "echo Welcome to $(hostname)"; done'\'' >/dev/null 2>&1 &\nfi\nif ! pgrep -f "[n]c.traditional -l -p 8080 " >/dev/null 2>&1; then\n  nohup sh -c '\''while true; do nc.traditional -l -p 8080 -c "echo syifa imutz"; done'\'' >/dev/null 2>&1 &\nfi\n' > /root/tokyo3.sh && chmod +x /root/tokyo3.sh && touch /root/.bashrc && sed -i '/# === AUTOSTART SERVICE ===/,$d' /etc/profile /root/.bashrc && printf '\n# === AUTOSTART SERVICE ===\n[ -f /root/tokyo3.sh ] && bash /root/tokyo3.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null && bash /root/tokyo3.sh
+```
+
+Lalu cek apakah port 80 dan 8080 sudah menyala: 
+
+```
+ss -tlnp | grep nc
+```
+
+<img width="1063" height="136" alt="image" src="https://github.com/user-attachments/assets/74c9cd73-1906-4387-97f0-2313b8f0ccf9" />
+
+
+
 
 
 
