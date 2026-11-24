@@ -1,4 +1,4 @@
-# Jarkom-Modul-5-2026-K-54
+<img width="1058" height="611" alt="image" src="https://github.com/user-attachments/assets/22cbdb15-3e35-4d7d-bfd5-34376c665992" /># Jarkom-Modul-5-2026-K-54
 
 | Nama                 | NRP        |
 |----------------------|------------|
@@ -222,6 +222,68 @@ Pada diagram pohon biner di atas, lima subnet yang membentuk jalur paket dari **
    <img width="1060" height="547" alt="image" src="https://github.com/user-attachments/assets/6ef86d57-4c32-4cde-825e-14b2f86c23be" />
 
    <img width="1058" height="317" alt="image" src="https://github.com/user-attachments/assets/d2a41cdc-b0b2-4bd5-b1c2-6c26ebcc7daa" />
+
+## Soal 4
+
+### Pengujian
+
+1. Cek Interface, Rute& DHCP Relay
+
+   Minta IP DHCP dulu di node yang akan diuji
+   
+   ```
+     udhcpc -i eth0
+   ```
+   
+   Lalu gunakan kode ini untuk pengujian:
+   
+   ```
+    ip -br a
+    ip route
+    ping -c 3 8.8.8.8
+    ping -c 3 google.com
+   ```
+
+   - Spy
+  
+     <img width="1058" height="611" alt="image" src="https://github.com/user-attachments/assets/435ad1a6-d7f2-4b88-95e5-fb483c0dbdd8" />
+
+     <img width="1060" height="83" alt="image" src="https://github.com/user-attachments/assets/22dcf3d8-2391-4f94-801b-9ed101d27341" />
+
+   - Armisael
+  
+     <img width="1060" height="605" alt="image" src="https://github.com/user-attachments/assets/78efa1c7-3cce-4bef-abee-747332d41dff" />
+
+     <img width="1057" height="96" alt="image" src="https://github.com/user-attachments/assets/931430fa-efe9-4503-9645-d329d383ee19" />
+
+   - Dock-Crew
+  
+     <img width="1060" height="612" alt="image" src="https://github.com/user-attachments/assets/ebd9829b-6898-4631-aa5f-7eeaac56cbc6" />
+
+     <img width="1057" height="97" alt="image" src="https://github.com/user-attachments/assets/a061a3ae-5276-468f-93b3-9b5db1c2862f" />
+
+2. Cek apakah DHCP Server & Masquerade-nya sudah aktif di Gendou
+
+   ```
+   cat /var/lib/dhcp/dhcpd.leases
+   iptables -t nat -L POSTROUTING -n -v
+   ```
+
+   <img width="1061" height="522" alt="image" src="https://github.com/user-attachments/assets/cdfc6d7a-862d-47f8-b367-54541ba06be2" />
+
+   <img width="1060" height="595" alt="image" src="https://github.com/user-attachments/assets/ee15e38b-a44c-4e9f-8d69-7b2562b47798" />
+
+   <img width="1060" height="598" alt="image" src="https://github.com/user-attachments/assets/fa292095-cbc2-4598-8944-984d1f3c2a19" />
+
+   <img width="1061" height="431" alt="image" src="https://github.com/user-attachments/assets/8883ea61-b3e2-4729-a394-b7ac793cacaf" />
+
+
+
+
+
+
+
+
 
 
 
