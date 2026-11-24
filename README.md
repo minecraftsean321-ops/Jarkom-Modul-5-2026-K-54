@@ -1,4 +1,4 @@
-<img width="1058" height="611" alt="image" src="https://github.com/user-attachments/assets/22cbdb15-3e35-4d7d-bfd5-34376c665992" /># Jarkom-Modul-5-2026-K-54
+# Jarkom-Modul-5-2026-K-54
 
 | Nama                 | NRP        |
 |----------------------|------------|
@@ -277,10 +277,27 @@ Pada diagram pohon biner di atas, lima subnet yang membentuk jalur paket dari **
 
    <img width="1061" height="431" alt="image" src="https://github.com/user-attachments/assets/8883ea61-b3e2-4729-a394-b7ac793cacaf" />
 
+## Soal 5 
+
+### Pengujian 
+
+1. Cek aturan firewall dan default policy pada INPUT & FORWARD di Gendou
+
+   ```
+    iptables -S
+   ```
+   
+   <img width="1021" height="325" alt="image" src="https://github.com/user-attachments/assets/bcd8b2ce-7ee6-4a11-b003-a077b9a72b07" />
 
 
+2. Membuktikan akses internet, akses ke Gendou, dan akses antar LAN masih berjalan mulus
 
+   ```
+    ping -c 3 8.8.8.8
+    ping -c 3 192.238.4.105
+   ```
 
+   <img width="982" height="489" alt="image" src="https://github.com/user-attachments/assets/df5de829-3b03-47ec-9c2a-9c2b3490f97b" />
 
 
 
