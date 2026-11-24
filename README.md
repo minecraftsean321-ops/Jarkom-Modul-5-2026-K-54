@@ -7,454 +7,464 @@
 
 ## Laporan Praktikum: Perancangan Subnetting VLSM, Static Routing, NAT, dan Keamanan Jaringan Menggunakan Firewall iptables
 
+## Daftar Isi
+
+- [Soal 1: Perancangan Subnetting VLSM](#soal-1-perancangan-subnetting-vlsm-19223800021)
+- [Soal 2](#soal-2)
+- [Soal 3](#soal-3)
+- [Soal 4](#soal-4)
+- [Soal 5](#soal-5)
+- [Soal 6](#soal-6)
+- [Soal 7](#soal-7)
+- [Soal 8](#soal-8)
+- [Soal 9](#soal-9)
+- [Soal 10](#soal-10)
+
+---
+
 ## Soal 1: Perancangan Subnetting VLSM (`192.238.0.0/21`)
 
 ### 1. Analisis Kebutuhan & Aturan Alokasi
 
-* **Blok IP Induk:** `192.238.0.0/21` (Rentang `192.238.0.0` – `192.238.7.255`, total $2.048$ alamat IP).
-
-* **Total Segmen:** $17\text{ LAN}$ dan $16\text{ Link point-to-point}$ antar-router ($33\text{ subnet}$).
-
-* **Aturan Pengurutan VLSM:** Diurutkan dari kebutuhan alamat terbesar ke terkecil. Apabila ukuran kebutuhan sama, segmen **LAN** diprioritaskan lebih dahulu daripada **link antar-router**, lalu diurutkan sesuai tabel host.
-
-* **Aturan Penomoran Node:** Gateway menggunakan alamat IP *usable* pertama pada subnet, sedangkan host menggunakan alamat IP *usable* berikutnya secara berurutan dari kiri ke kanan sesuai topologi.
+- **Blok IP Induk:** `192.238.0.0/21` (rentang `192.238.0.0` – `192.238.7.255`, total $2.048$ alamat IP).
+- **Total Segmen:** $17\text{ LAN}$ dan $16\text{ Link point-to-point}$ antar-router ($33\text{ subnet}$).
+- **Aturan Pengurutan VLSM:** Diurutkan dari kebutuhan alamat terbesar ke terkecil. Apabila ukuran kebutuhan sama, segmen **LAN** diprioritaskan lebih dahulu daripada **link antar-router**, lalu diurutkan sesuai tabel host.
+- **Aturan Penomoran Node:** Gateway menggunakan alamat IP *usable* pertama pada subnet, sedangkan host menggunakan alamat IP *usable* berikutnya secara berurutan dari kiri ke kanan sesuai topologi.
 
 ### 2. Tabel Pembagian Subnet VLSM dan Pohon IP
 
-Tabel VLSM: 
+**Tabel VLSM**
 
-<img width="1011" height="547" alt="image" src="https://github.com/user-attachments/assets/d31feefc-d4fe-41b5-95b4-6c61d85613cf" />
+<img src="https://github.com/user-attachments/assets/d31feefc-d4fe-41b5-95b4-6c61d85613cf" width="650" alt="Tabel VLSM">
 
-Gambar Pohon IP:  
+**Gambar Pohon IP**
 
-<img width="1772" height="4776" alt="pohon_vlsm_192 238 0 0" src="https://github.com/user-attachments/assets/663511e7-19ce-404e-8b39-ec1cb2f126d9" />
+<img src="https://github.com/user-attachments/assets/663511e7-19ce-404e-8b39-ec1cb2f126d9" width="450" alt="Pohon VLSM 192.238.0.0">
 
 ### 3. Penjelasan Perhitungan Satu Subnet (Studi Kasus: `Switch-Quarters`)
 
 Sebagai ilustrasi metode perhitungan VLSM yang diterapkan pada seluruh tabel, berikut rincian perhitungan pada segmen **Switch-Quarters**:
 
-1. **Menentukan Total Kebutuhan IP Usable**
+#### 3.1 Menentukan Total Kebutuhan IP Usable
 
-   * Berdasarkan tabel host, container `Quarters` membutuhkan $500\text{ host}$.
+- Berdasarkan tabel host, container `Quarters` membutuhkan $500\text{ host}$.
+- Ditambah $1\text{ alamat IP}$ untuk *default gateway* pada interface router `Rei`.
+- Total alamat IP *usable* yang dibutuhkan:
 
-   * Ditambah $1\text{ alamat IP}$ untuk *default gateway* pada interface router `Rei`.
+$$
+\text{Total Kebutuhan Usable} = 500 + 1 = 501\text{ IP}
+$$
 
-   * Total alamat IP *usable* yang dibutuhkan:
-     
+#### 3.2 Menentukan Panjang Prefix (`/prefix`), Ukuran Blok, dan Subnet Mask
 
-     $$
-     \text{Total Kebutuhan Usable} = 500 + 1 = 501\text{ IP}
-     $$
+- Menggunakan rumus kapasitas host usable $2^h - 2 \ge \text{kebutuhan usable}$ (dikurangi $2$ untuk alamat *Network* dan *Broadcast*):
+  - Jika $h = 8 \rightarrow 2^8 - 2 = 254$ (tidak mencukupi $501\text{ IP}$).
+  - Jika $h = 9 \rightarrow 2^9 - 2 = 512 - 2 = 510\text{ IP usable}$ (memenuhi syarat $\ge 501$).
+- Dengan jumlah bit host $h = 9$, panjang prefix terkecil yang sesuai adalah:
 
-2. **Menentukan Panjang Prefix (`/prefix`), Ukuran Blok, dan Subnet Mask**
+$$
+\text{Prefix} = 32 - 9 = /23
+$$
 
-   * Menggunakan rumus kapasitas host usable $2^h - 2 \ge \text{kebutuhan usable}$ (dikurangi $2$ untuk alamat *Network* dan *Broadcast*):
+- **Ukuran Blok:** $2^9 = 512\text{ alamat IP}$ (mencakup dua blok `/24` berturut-turut, yaitu lompatan $+2$ pada oktet ketiga).
+- **Subnet Mask:** Representasi biner `/23` adalah `11111111.11111111.11111110.00000000`, sehingga dalam desimal menjadi **`255.255.254.0`**.
 
-     * Jika $h = 8 \rightarrow 2^8 - 2 = 254$ (tidak mencukupi $501\text{ IP}$).
+#### 3.3 Menentukan Alamat Network, Gateway, Range Host, Broadcast, dan Sisa IP
 
-     * Jika $h = 9 \rightarrow 2^9 - 2 = 512 - 2 = 510\text{ IP usable}$ (memenuhi syarat $\ge 501$).
+Karena `Switch-Quarters` memiliki kebutuhan terbesar, alokasi dimulai tepat di titik awal blok induk `192.238.0.0/21` dengan nilai **Offset = 0**:
 
-   * Dengan jumlah bit host $h = 9$, panjang prefix terkecil yang sesuai adalah:
-     
-
-     $$
-     \text{Prefix} = 32 - 9 = /23
-     $$
-
-   * **Ukuran Blok:** $2^9 = 512\text{ alamat IP}$ (mencakup dua blok `/24` berturut-turut, yaitu lompatan $+2$ pada oktet ketiga).
-
-   * **Subnet Mask:** Representasi biner `/23` adalah `11111111.11111111.11111110.00000000`, sehingga dalam desimal menjadi **`255.255.254.0`**.
-
-3. **Menentukan Alamat Network, Gateway, Range Host, Broadcast, dan Sisa IP**
-
-   * Karena `Switch-Quarters` memiliki kebutuhan terbesar, alokasi dimulai tepat di titik awal blok induk `192.238.0.0/21` dengan nilai **Offset = 0**:
-
-     * **Network Address:** `192.238.0.0/23`
-
-     * **Broadcast Address:** Ukuran blok $512$ menghabiskan oktet ketiga `.0` dan `.1` secara penuh, sehingga alamat terakhir (broadcast) berada di **`192.238.1.255`**.
-
-     * **Range Host (Usable):** `192.238.0.1` s/d `192.238.1.254` ($510\text{ IP}$).
-
-     * **Gateway (Router Rei):** Mengambil alamat *usable* pertama, yaitu **`192.238.0.1`**.
-
-     * **IP Host (`Quarters`):** Mengambil alamat *usable* berikutnya setelah gateway, yaitu **`192.238.0.2`**.
-
-     * **Sisa IP Usable:** $510 - 501 = 9\text{ IP}$.
+| Komponen | Nilai |
+|----------|-------|
+| **Network Address** | `192.238.0.0/23` |
+| **Broadcast Address** | `192.238.1.255` (ukuran blok $512$ menghabiskan oktet ketiga `.0` dan `.1` secara penuh) |
+| **Range Host (Usable)** | `192.238.0.1` s/d `192.238.1.254` ($510\text{ IP}$) |
+| **Gateway (Router Rei)** | `192.238.0.1` (alamat *usable* pertama) |
+| **IP Host (`Quarters`)** | `192.238.0.2` (alamat *usable* berikutnya setelah gateway) |
+| **Sisa IP Usable** | $510 - 501 = 9\text{ IP}$ |
 
 ### 4. Pohon Alokasi IP & Jalur Dummy-Plug ke Armisael
 
 Pada diagram pohon biner di atas, lima subnet yang membentuk jalur paket dari **Dummy-Plug** (`Switch-Lab`) menuju **Armisael** (`Switch-Monolith`) ditandai dengan lingkaran merah:
 
-1. `192.238.4.48/29` (**Switch-Lab** — asal `Dummy-Plug`)
+| No | Subnet | Keterangan |
+|----|--------|------------|
+| 1 | `192.238.4.48/29` | **Switch-Lab** — asal `Dummy-Plug` |
+| 2 | `192.238.4.140/30` | **Link Asuka – Ritsuko** |
+| 3 | `192.238.4.132/30` | **Link Gendou – Asuka** |
+| 4 | `192.238.4.152/30` | **Link Gendou – Shigeru** |
+| 5 | `192.238.4.80/29` | **Switch-Monolith** — tujuan `Armisael` |
 
-2. `192.238.4.140/30` (**Link Asuka – Ritsuko**)
-
-3. `192.238.4.132/30` (**Link Gendou – Asuka**)
-
-4. `192.238.4.152/30` (**Link Gendou – Shigeru**)
-
-5. `192.238.4.80/29` (**Switch-Monolith** — tujuan `Armisael`)
+---
 
 ## Soal 2
 
-### Pengujian 
+### Pengujian
 
-1. Cek status IP & Interface di tiap router:
+#### 1. Cek status IP & interface di tiap router
 
-   ```
-    ip -br a
-   ```
+```bash
+ip -br a
+```
 
-   - Gendou
+**Gendou**
 
-     <img width="863" height="331" alt="image" src="https://github.com/user-attachments/assets/3c47496d-70a1-49ac-a5ce-154ddefe2dbb" />
+<img src="https://github.com/user-attachments/assets/3c47496d-70a1-49ac-a5ce-154ddefe2dbb" width="550" alt="ip -br a Gendou">
 
-   - Yui
-  
-     <img width="726" height="197" alt="image" src="https://github.com/user-attachments/assets/cafe4e71-2046-40d5-ab32-51ea349f2964" />
+**Yui**
 
-   - Fuyutsuki
-  
-     <img width="725" height="168" alt="image" src="https://github.com/user-attachments/assets/2718ddd5-7ba5-4665-bc0d-99ad950d4f56" />
+<img src="https://github.com/user-attachments/assets/cafe4e71-2046-40d5-ab32-51ea349f2964" width="550" alt="ip -br a Yui">
 
-2. Uji ping ke seluruh 16 link router-ke-router (pakai loop satu baris):
+**Fuyutsuki**
 
-  - Gendou ( Uji ke 7 link router cabang utama)
+<img src="https://github.com/user-attachments/assets/2718ddd5-7ba5-4665-bc0d-99ad950d4f56" width="550" alt="ip -br a Fuyutsuki">
 
-    ```
-      for ip in 192.238.4.110 192.238.4.126 192.238.4.134 192.238.4.146 192.238.4.150 192.238.4.154 192.238.4.162; do ping -c 2 -W 1 $ip; done
-    ```
+#### 2. Uji ping ke seluruh 16 link router-ke-router (loop satu baris)
 
-    <img width="1060" height="471" alt="image" src="https://github.com/user-attachments/assets/9312e641-2e88-4618-b83f-f554173d3aff" />
-    
-    <img width="1055" height="587" alt="image" src="https://github.com/user-attachments/assets/92561487-72f0-4398-a97b-86b167986373" />
+**Gendou** (uji ke 7 link router cabang utama)
 
-    <img width="1058" height="279" alt="image" src="https://github.com/user-attachments/assets/63bd8d81-d940-4c63-9d75-d8414e1964fb" />
+```bash
+for ip in 192.238.4.110 192.238.4.126 192.238.4.134 192.238.4.146 192.238.4.150 192.238.4.154 192.238.4.162; do ping -c 2 -W 1 $ip; done
+```
 
+<img src="https://github.com/user-attachments/assets/9312e641-2e88-4618-b83f-f554173d3aff" width="550" alt="Ping Gendou 1">
 
-  - Yui ( Uji link ke Mari, Rei, Shinji)
+<img src="https://github.com/user-attachments/assets/92561487-72f0-4398-a97b-86b167986373" width="550" alt="Ping Gendou 2">
 
-    ```
-      for ip in 192.238.4.114 192.238.4.118 192.238.4.122; do ping -c 2 -W 1 $ip; done
-    ```
+<img src="https://github.com/user-attachments/assets/63bd8d81-d940-4c63-9d75-d8414e1964fb" width="550" alt="Ping Gendou 3">
 
-    <img width="1011" height="571" alt="image" src="https://github.com/user-attachments/assets/9ce67002-a9ab-4dcd-bd01-041fb4bc5cb0" />
+**Yui** (uji link ke Mari, Rei, Shinji)
 
-  - Hikari ( uji link ke Kaworu)
+```bash
+for ip in 192.238.4.114 192.238.4.118 192.238.4.122; do ping -c 2 -W 1 $ip; done
+```
 
-    ```
-      ping -c 2 192.238.4.130
-    ```
+<img src="https://github.com/user-attachments/assets/9ce67002-a9ab-4dcd-bd01-041fb4bc5cb0" width="550" alt="Ping Yui">
 
-    <img width="915" height="196" alt="image" src="https://github.com/user-attachments/assets/6df61c6a-0061-401a-b0e4-a5df58fc5a6a" />
+**Hikari** (uji link ke Kaworu)
 
-  - Asuka (Uji 2 link ke Kensuke & Ritsuko)
+```bash
+ping -c 2 192.238.4.130
+```
 
-    ```
-      for ip in 192.238.4.138 192.238.4.142; do ping -c 2 -W 1 $ip; done
-    ```
+<img src="https://github.com/user-attachments/assets/6df61c6a-0061-401a-b0e4-a5df58fc5a6a" width="550" alt="Ping Hikari">
 
-    <img width="890" height="381" alt="image" src="https://github.com/user-attachments/assets/f1c5a472-cd54-49af-bcb4-64b269595d80" />
+**Asuka** (uji 2 link ke Kensuke & Ritsuko)
+
+```bash
+for ip in 192.238.4.138 192.238.4.142; do ping -c 2 -W 1 $ip; done
+```
+
+<img src="https://github.com/user-attachments/assets/f1c5a472-cd54-49af-bcb4-64b269595d80" width="550" alt="Ping Asuka">
+
+---
 
 ## Soal 3
 
-### Pengujian 
+### Pengujian
 
-1. Cek tabel routing
+#### 1. Cek tabel routing
 
-   ```
-    ip route
-    ping -c 3 8.8.8.8
-   ```
+```bash
+ip route
+ping -c 3 8.8.8.8
+```
 
-   - Gendou
+**Gendou**
 
-   <img width="1058" height="623" alt="image" src="https://github.com/user-attachments/assets/0fd3a0f0-a2de-429a-a201-cfb789edb28a" />
+<img src="https://github.com/user-attachments/assets/0fd3a0f0-a2de-429a-a201-cfb789edb28a" width="550" alt="Routing Gendou 1">
 
-   <img width="1056" height="490" alt="image" src="https://github.com/user-attachments/assets/d389d812-24a4-4264-9dc8-3d644383c6dd" />
+<img src="https://github.com/user-attachments/assets/d389d812-24a4-4264-9dc8-3d644383c6dd" width="550" alt="Routing Gendou 2">
 
-   - Yui
-  
-     <img width="927" height="161" alt="image" src="https://github.com/user-attachments/assets/d7eb1acc-b570-433a-8aa4-38fc60848a85" />
+**Yui**
 
-   - Shigeru
-  
-     <img width="994" height="112" alt="image" src="https://github.com/user-attachments/assets/44384bff-136a-4204-ab28-5ef5293016a6" />
+<img src="https://github.com/user-attachments/assets/d7eb1acc-b570-433a-8aa4-38fc60848a85" width="550" alt="Routing Yui">
 
-2. Pasang  IP sementara pada 5 host uji dari cabang yang berjauhan:
+**Shigeru**
 
-   - Armisael (Cabang Shigeru — menguji summary 192.238.4.80/28)
-     
-     ```
-      ip addr flush dev eth0 && ip addr add 192.238.4.83/29 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.4.81
-     ```
+<img src="https://github.com/user-attachments/assets/44384bff-136a-4204-ab28-5ef5293016a6" width="550" alt="Routing Shigeru">
 
-   - Quarters
-  
-     ```
-      ip addr flush dev eth0 && ip addr add 192.238.0.2/23 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.0.1
-     ```
+#### 2. Pasang IP sementara pada 5 host uji dari cabang yang berjauhan
 
-   - Lilith
-  
-     ```
-      ip addr flush dev eth0 && ip addr add 192.238.4.74/29 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.4.73
-     ```
+**Armisael** (Cabang Shigeru — menguji summary `192.238.4.80/28`)
 
-   - Sachiel
-  
-     ```
-      ip addr flush dev eth0 && ip addr add 192.238.3.130/26 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.3.129
-     ```
+```bash
+ip addr flush dev eth0 && ip addr add 192.238.4.83/29 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.4.81
+```
 
-   - Comm-Net
-  
-     ```
-      ip addr flush dev eth0 && ip addr add 192.238.2.2/24 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.2.1
-     ```
-     
-3. Uji ping lintas cabang dari Armisael:
+**Quarters**
 
-   ```
-    for ip in 192.238.0.2 192.238.4.74 192.238.3.130 192.238.2.2; do ping -c 3 $ip; done
-   ```
+```bash
+ip addr flush dev eth0 && ip addr add 192.238.0.2/23 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.0.1
+```
 
-   <img width="1060" height="547" alt="image" src="https://github.com/user-attachments/assets/6ef86d57-4c32-4cde-825e-14b2f86c23be" />
+**Lilith**
 
-   <img width="1058" height="317" alt="image" src="https://github.com/user-attachments/assets/d2a41cdc-b0b2-4bd5-b1c2-6c26ebcc7daa" />
+```bash
+ip addr flush dev eth0 && ip addr add 192.238.4.74/29 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.4.73
+```
+
+**Sachiel**
+
+```bash
+ip addr flush dev eth0 && ip addr add 192.238.3.130/26 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.3.129
+```
+
+**Comm-Net**
+
+```bash
+ip addr flush dev eth0 && ip addr add 192.238.2.2/24 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.2.1
+```
+
+#### 3. Uji ping lintas cabang dari Armisael
+
+```bash
+for ip in 192.238.0.2 192.238.4.74 192.238.3.130 192.238.2.2; do ping -c 3 $ip; done
+```
+
+<img src="https://github.com/user-attachments/assets/6ef86d57-4c32-4cde-825e-14b2f86c23be" width="550" alt="Ping lintas cabang 1">
+
+<img src="https://github.com/user-attachments/assets/d2a41cdc-b0b2-4bd5-b1c2-6c26ebcc7daa" width="550" alt="Ping lintas cabang 2">
+
+---
 
 ## Soal 4
 
 ### Pengujian
 
-1. Cek Interface, Rute& DHCP Relay
+#### 1. Cek interface, rute & DHCP relay
 
-   Minta IP DHCP dulu di node yang akan diuji
-   
-   ```
-     udhcpc -i eth0
-   ```
-   
-   Lalu gunakan kode ini untuk pengujian:
-   
-   ```
-    ip -br a
-    ip route
-    ping -c 3 8.8.8.8
-    ping -c 3 google.com
-   ```
+Minta IP DHCP dulu di node yang akan diuji:
 
-   - Spy
-  
-     <img width="1058" height="611" alt="image" src="https://github.com/user-attachments/assets/435ad1a6-d7f2-4b88-95e5-fb483c0dbdd8" />
+```bash
+udhcpc -i eth0
+```
 
-     <img width="1060" height="83" alt="image" src="https://github.com/user-attachments/assets/22dcf3d8-2391-4f94-801b-9ed101d27341" />
+Lalu gunakan perintah ini untuk pengujian:
 
-   - Armisael
-  
-     <img width="1060" height="605" alt="image" src="https://github.com/user-attachments/assets/78efa1c7-3cce-4bef-abee-747332d41dff" />
+```bash
+ip -br a
+ip route
+ping -c 3 8.8.8.8
+ping -c 3 google.com
+```
 
-     <img width="1057" height="96" alt="image" src="https://github.com/user-attachments/assets/931430fa-efe9-4503-9645-d329d383ee19" />
+**Spy**
 
-   - Dock-Crew
-  
-     <img width="1060" height="612" alt="image" src="https://github.com/user-attachments/assets/ebd9829b-6898-4631-aa5f-7eeaac56cbc6" />
+<img src="https://github.com/user-attachments/assets/435ad1a6-d7f2-4b88-95e5-fb483c0dbdd8" width="550" alt="Spy 1">
 
-     <img width="1057" height="97" alt="image" src="https://github.com/user-attachments/assets/a061a3ae-5276-468f-93b3-9b5db1c2862f" />
+<img src="https://github.com/user-attachments/assets/22dcf3d8-2391-4f94-801b-9ed101d27341" width="550" alt="Spy 2">
 
-2. Cek apakah DHCP Server & Masquerade-nya sudah aktif di Gendou
+**Armisael**
 
-   ```
-   cat /var/lib/dhcp/dhcpd.leases
-   iptables -t nat -L POSTROUTING -n -v
-   ```
+<img src="https://github.com/user-attachments/assets/78efa1c7-3cce-4bef-abee-747332d41dff" width="550" alt="Armisael 1">
 
-   <img width="1061" height="522" alt="image" src="https://github.com/user-attachments/assets/cdfc6d7a-862d-47f8-b367-54541ba06be2" />
+<img src="https://github.com/user-attachments/assets/931430fa-efe9-4503-9645-d329d383ee19" width="550" alt="Armisael 2">
 
-   <img width="1060" height="595" alt="image" src="https://github.com/user-attachments/assets/ee15e38b-a44c-4e9f-8d69-7b2562b47798" />
+**Dock-Crew**
 
-   <img width="1060" height="598" alt="image" src="https://github.com/user-attachments/assets/fa292095-cbc2-4598-8944-984d1f3c2a19" />
+<img src="https://github.com/user-attachments/assets/ebd9829b-6898-4631-aa5f-7eeaac56cbc6" width="550" alt="Dock-Crew 1">
 
-   <img width="1061" height="431" alt="image" src="https://github.com/user-attachments/assets/8883ea61-b3e2-4729-a394-b7ac793cacaf" />
+<img src="https://github.com/user-attachments/assets/a061a3ae-5276-468f-93b3-9b5db1c2862f" width="550" alt="Dock-Crew 2">
 
-## Soal 5 
+#### 2. Cek apakah DHCP Server & Masquerade sudah aktif di Gendou
 
-### Langkah 1: Tambahkan aturan Firewall ke Gendou 
+```bash
+cat /var/lib/dhcp/dhcpd.leases
+iptables -t nat -L POSTROUTING -n -v
+```
+
+<img src="https://github.com/user-attachments/assets/cdfc6d7a-862d-47f8-b367-54541ba06be2" width="550" alt="DHCP leases 1">
+
+<img src="https://github.com/user-attachments/assets/ee15e38b-a44c-4e9f-8d69-7b2562b47798" width="550" alt="DHCP leases 2">
+
+<img src="https://github.com/user-attachments/assets/fa292095-cbc2-4598-8944-984d1f3c2a19" width="550" alt="DHCP leases 3">
+
+<img src="https://github.com/user-attachments/assets/8883ea61-b3e2-4729-a394-b7ac793cacaf" width="550" alt="Masquerade POSTROUTING">
+
+---
+
+## Soal 5
+
+### Langkah 1: Tambahkan aturan firewall ke Gendou
 
 Masukkan script ini ke Gendou:
 
+```bash
+# 1. Pastikan flag tanggal apt-get di gendo.sh aman saat GNS3 restart
+sed -i 's|apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y isc-dhcp-server|apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true \&\& DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated isc-dhcp-server|' /root/gendo.sh
+
+# 2. Hapus blok Soal 5 lama (jika skrip dijalankan ulang) lalu append aturan Soal 5
+sed -i '/# === SOAL 5: FIREWALL ===/,$d' /root/gendo.sh
+cat << 'EOF' >> /root/gendo.sh
+
+# === SOAL 5: FIREWALL ===
+# Reset filter table & set policy: boleh keluar (OUTPUT ACCEPT), tidak boleh dimasuki (INPUT & FORWARD DROP)
+iptables -F
+iptables -X
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# Izinkan Loopback dan DHCP dari NAT1 (eth0)
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -i eth0 -p udp --sport 67 --dport 68 -j ACCEPT
+
+# (a) Izinkan balasan koneksi yang sudah ada (ESTABLISHED, RELATED)
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# (b) Izinkan traffic dari jaringan internal (192.238.0.0/21) ke internet (eth0)
+iptables -A FORWARD ! -i eth0 -s 192.238.0.0/21 -o eth0 -j ACCEPT
+
+# (c) Izinkan traffic antar-LAN di dalam jaringan internal
+iptables -A FORWARD ! -i eth0 ! -o eth0 -s 192.238.0.0/21 -d 192.238.0.0/21 -j ACCEPT
+
+# (d) Izinkan traffic dari jaringan internal ke Gendo sendiri (termasuk DHCP internal)
+iptables -A INPUT ! -i eth0 -s 192.238.0.0/21 -j ACCEPT
+iptables -A INPUT ! -i eth0 -p udp --dport 67 -j ACCEPT
+EOF
+
+# 3. Jalankan gendo.sh untuk menerapkan firewall sekaligus memastikan DHCP & NAT tetap aktif
+bash /root/gendo.sh
 ```
-  # 1. Pastikan flag tanggal apt-get di gendo.sh aman saat GNS3 restart
-  sed -i 's|apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y isc-dhcp-server|apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true \&\& DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated isc-dhcp-server|' /root/gendo.sh
-  
-  # 2. Hapus blok Soal 5 lama (jika skrip dijalankan ulang) lalu append aturan Soal 5
-  sed -i '/# === SOAL 5: FIREWALL ===/,$d' /root/gendo.sh
-  cat << 'EOF' >> /root/gendo.sh
-  
-  # === SOAL 5: FIREWALL ===
-  # Reset filter table & set policy: boleh keluar (OUTPUT ACCEPT), tidak boleh dimasuki (INPUT & FORWARD DROP)
-  iptables -F
-  iptables -X
-  iptables -P INPUT DROP
-  iptables -P FORWARD DROP
-  iptables -P OUTPUT ACCEPT
-  
-  # Izinkan Loopback dan DHCP dari NAT1 (eth0)
-  iptables -A INPUT -i lo -j ACCEPT
-  iptables -A INPUT -i eth0 -p udp --sport 67 --dport 68 -j ACCEPT
-  
-  # (a) Izinkan balasan koneksi yang sudah ada (ESTABLISHED, RELATED)
-  iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-  iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-  
-  # (b) Izinkan traffic dari jaringan internal (192.238.0.0/21) ke internet (eth0)
-  iptables -A FORWARD ! -i eth0 -s 192.238.0.0/21 -o eth0 -j ACCEPT
-  
-  # (c) Izinkan traffic antar-LAN di dalam jaringan internal
-  iptables -A FORWARD ! -i eth0 ! -o eth0 -s 192.238.0.0/21 -d 192.238.0.0/21 -j ACCEPT
-  
-  # (d) Izinkan traffic dari jaringan internal ke Gendo sendiri (termasuk DHCP internal)
-  iptables -A INPUT ! -i eth0 -s 192.238.0.0/21 -j ACCEPT
-  iptables -A INPUT ! -i eth0 -p udp --dport 67 -j ACCEPT
-  EOF
-  
-  # 3. Jalankan gendo.sh untuk menerapkan firewall sekaligus memastikan DHCP & NAT tetap aktif
-  bash /root/gendo.sh
+
+### Pengujian
+
+#### 1. Cek aturan firewall dan default policy pada INPUT & FORWARD di Gendou
+
+```bash
+iptables -S
 ```
 
-### Pengujian 
+<img src="https://github.com/user-attachments/assets/bcd8b2ce-7ee6-4a11-b003-a077b9a72b07" width="550" alt="iptables -S Gendou">
 
-1. Cek aturan firewall dan default policy pada INPUT & FORWARD di Gendou
+#### 2. Membuktikan akses internet, akses ke Gendou, dan akses antar LAN masih berjalan mulus
 
-   ```
-    iptables -S
-   ```
-   
-   <img width="1021" height="325" alt="image" src="https://github.com/user-attachments/assets/bcd8b2ce-7ee6-4a11-b003-a077b9a72b07" />
-
-
-2. Membuktikan akses internet, akses ke Gendou, dan akses antar LAN masih berjalan mulus
-
-   ```
-    ping -c 3 8.8.8.8
-    ping -c 3 192.238.4.105
-   ```
-
-   <img width="982" height="489" alt="image" src="https://github.com/user-attachments/assets/df5de829-3b03-47ec-9c2a-9c2b3490f97b" />
-
-
-## Soal 6 
-
-Gunakan script ini untuknode Unit-01:
-
+```bash
+ping -c 3 8.8.8.8
+ping -c 3 192.238.4.105
 ```
+
+<img src="https://github.com/user-attachments/assets/df5de829-3b03-47ec-9c2a-9c2b3490f97b" width="550" alt="Ping setelah firewall">
+
+---
+
+## Soal 6
+
+Gunakan script ini untuk node **Unit-01**:
+
+```bash
 printf 'auto lo\niface lo inet loopback\n\nauto eth0\niface eth0 inet static\n    address 192.238.4.66\n    netmask 255.255.255.248\n    gateway 192.238.4.65\n' > /etc/network/interfaces && printf '#!/bin/sh\npkill udhcpc 2>/dev/null\nip addr flush dev eth0\nip addr add 192.238.4.66/29 dev eth0\nip link set eth0 up\nip route replace default via 192.238.4.65\necho "nameserver 8.8.8.8" > /etc/resolv.conf\n' > /root/ip.sh && chmod +x /root/ip.sh && touch /root/.bashrc && sed -i '/# === AUTOSTART/,$d' /etc/profile /root/.bashrc && printf '\n# === AUTOSTART STATIC IP ===\n[ -f /root/ip.sh ] && sh /root/ip.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null && sh /root/ip.sh
 ```
 
-### Pengujian 
+### Pengujian
 
-  - Unit-01
+**Unit-01**
 
-    ```
-      ip -br a
-      ip route
-      ping -c 3 192.238.4.65
-      cat /etc/network/interfaces
-    ```
-    <img width="1058" height="633" alt="image" src="https://github.com/user-attachments/assets/29a197ff-a4a5-4342-87a8-ca0af7039281" />
-
-  - Tokyo-Core3
-
-    ```
-      ip -br a
-      ip route
-      ping -c 3 192.238.4.105
-      cat /etc/network/interfaces
-    ```
-    
-    <img width="945" height="626" alt="image" src="https://github.com/user-attachments/assets/8cc47737-0f9a-4317-8630-ca474020b3e8" />
-
-  - Magi-Casper
-
-    ```
-      ip -br a
-      ip route
-      ping -c 3 192.238.4.57
-      cat /etc/network/interfaces
-    ```
-
-    <img width="1064" height="624" alt="image" src="https://github.com/user-attachments/assets/6c72ba03-aad3-4315-aa9e-5259e64a5fab" />
-
-## Soal 7 
-
-### Langkah 1: Pasang skrip & Nyalakan Listener di Ketiga Node MAGI
-
-### Langkah 2: Kirim Pesan dari Lilith 
-
-<img width="1060" height="220" alt="image" src="https://github.com/user-attachments/assets/8bc2be94-902c-4efc-8052-e013149d0919" />
-
-### Pengujian 
-
-  - Magi-Casper
-
-    ```
-      ss -tlnp | grep nc
-      cat /tmp/casper_5000.log
-    ```
-
-    <img width="1055" height="134" alt="image" src="https://github.com/user-attachments/assets/7214f3b2-038c-4432-aab4-cdf85a809f8b" />
-
-  - Magi-Balthasar
-
-    ```
-      ss -tlnp | grep nc
-      cat /tmp/balthasar_5000.log
-      cat /tmp/balthasar_5001.log
-    ```
-
-    <img width="1059" height="243" alt="image" src="https://github.com/user-attachments/assets/1efdfdf2-a5c4-483b-a8bf-3c94a314f289" />
-
-
-  - Magi-Melchior
-
-    ```
-      ss -tlnp | grep nc
-      cat /tmp/melchior_5000.log
-    ```
-
-    <img width="1060" height="134" alt="image" src="https://github.com/user-attachments/assets/642fab33-0321-4e1d-97ec-c6df0a056d7c" />
-
-## Soal 8 
-
-### Langkah 1: Konfigurasi Listener di Pen-Pen 
-
+```bash
+ip -br a
+ip route
+ping -c 3 192.238.4.65
+cat /etc/network/interfaces
 ```
+
+<img src="https://github.com/user-attachments/assets/29a197ff-a4a5-4342-87a8-ca0af7039281" width="550" alt="Pengujian Unit-01">
+
+**Tokyo-Core3**
+
+```bash
+ip -br a
+ip route
+ping -c 3 192.238.4.105
+cat /etc/network/interfaces
+```
+
+<img src="https://github.com/user-attachments/assets/8cc47737-0f9a-4317-8630-ca474020b3e8" width="550" alt="Pengujian Tokyo-Core3">
+
+**Magi-Casper**
+
+```bash
+ip -br a
+ip route
+ping -c 3 192.238.4.57
+cat /etc/network/interfaces
+```
+
+<img src="https://github.com/user-attachments/assets/6c72ba03-aad3-4315-aa9e-5259e64a5fab" width="550" alt="Pengujian Magi-Casper">
+
+---
+
+## Soal 7
+
+### Langkah 1: Pasang skrip & nyalakan listener di ketiga node MAGI
+
+### Langkah 2: Kirim pesan dari Lilith
+
+<img src="https://github.com/user-attachments/assets/8bc2be94-902c-4efc-8052-e013149d0919" width="550" alt="Kirim pesan dari Lilith">
+
+### Pengujian
+
+**Magi-Casper**
+
+```bash
+ss -tlnp | grep nc
+cat /tmp/casper_5000.log
+```
+
+<img src="https://github.com/user-attachments/assets/7214f3b2-038c-4432-aab4-cdf85a809f8b" width="550" alt="Magi-Casper">
+
+**Magi-Balthasar**
+
+```bash
+ss -tlnp | grep nc
+cat /tmp/balthasar_5000.log
+cat /tmp/balthasar_5001.log
+```
+
+<img src="https://github.com/user-attachments/assets/1efdfdf2-a5c4-483b-a8bf-3c94a314f289" width="550" alt="Magi-Balthasar">
+
+**Magi-Melchior**
+
+```bash
+ss -tlnp | grep nc
+cat /tmp/melchior_5000.log
+```
+
+<img src="https://github.com/user-attachments/assets/642fab33-0321-4e1d-97ec-c6df0a056d7c" width="550" alt="Magi-Melchior">
+
+---
+
+## Soal 8
+
+### Langkah 1: Konfigurasi listener di Pen-Pen
+
+```bash
 printf '#!/bin/bash\n[ -f /root/ip.sh ] && sh /root/ip.sh\nif ! command -v nc.traditional >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then\n  apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true\n  DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated iptables netcat-traditional\n  update-alternatives --set nc /bin/nc.traditional 2>/dev/null || true\nfi\nif ! pgrep -f "[n]c.traditional -l -p 80 " >/dev/null 2>&1; then\n  nohup sh -c '\''while true; do nc.traditional -l -p 80 -c "echo Welcome to $(hostname)"; done'\'' >/dev/null 2>&1 &\nfi\n' > /root/penpen.sh && chmod +x /root/penpen.sh && touch /root/.bashrc && sed -i '/# === AUTOSTART SERVICE ===/,$d' /etc/profile /root/.bashrc && printf '\n# === AUTOSTART SERVICE ===\n[ -f /root/penpen.sh ] && bash /root/penpen.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null && bash /root/penpen.sh
 ```
 
-<img width="1062" height="84" alt="image" src="https://github.com/user-attachments/assets/b735d440-93f4-4a69-be12-6d7c26e21de4" />
+<img src="https://github.com/user-attachments/assets/b735d440-93f4-4a69-be12-6d7c26e21de4" width="550" alt="Listener Pen-Pen">
 
-### Langkah 2: Konfigurasi Listener di Tokyo3-Core
+### Langkah 2: Konfigurasi listener di Tokyo3-Core
 
-Jalankan perintah satu baris berikut untuk menayalakan port 80 dan 8080:
+Jalankan perintah satu baris berikut untuk menyalakan port 80 dan 8080:
 
-```
+```bash
 printf '#!/bin/bash\n[ -f /root/ip.sh ] && sh /root/ip.sh\nif ! command -v nc.traditional >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then\n  apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true\n  DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated iptables netcat-traditional\n  update-alternatives --set nc /bin/nc.traditional 2>/dev/null || true\nfi\nif ! pgrep -f "[n]c.traditional -l -p 80 " >/dev/null 2>&1; then\n  nohup sh -c '\''while true; do nc.traditional -l -p 80 -c "echo Welcome to $(hostname)"; done'\'' >/dev/null 2>&1 &\nfi\nif ! pgrep -f "[n]c.traditional -l -p 8080 " >/dev/null 2>&1; then\n  nohup sh -c '\''while true; do nc.traditional -l -p 8080 -c "echo syifa imutz"; done'\'' >/dev/null 2>&1 &\nfi\n' > /root/tokyo3.sh && chmod +x /root/tokyo3.sh && touch /root/.bashrc && sed -i '/# === AUTOSTART SERVICE ===/,$d' /etc/profile /root/.bashrc && printf '\n# === AUTOSTART SERVICE ===\n[ -f /root/tokyo3.sh ] && bash /root/tokyo3.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null && bash /root/tokyo3.sh
 ```
 
-Lalu cek apakah port 80 dan 8080 sudah menyala: 
+Lalu cek apakah port 80 dan 8080 sudah menyala:
 
-```
+```bash
 ss -tlnp | grep nc
 ```
 
-<img width="1063" height="136" alt="image" src="https://github.com/user-attachments/assets/74c9cd73-1906-4387-97f0-2313b8f0ccf9" />
+<img src="https://github.com/user-attachments/assets/74c9cd73-1906-4387-97f0-2313b8f0ccf9" width="550" alt="Port 80 dan 8080 Tokyo3-Core">
 
-### Pengujian 
+### Pengujian
 
-Jalankan pengujian berikut di Lilith untuk membuktikan port yang terbuka langsung membalas dan port yang menutup langsung ditolak:
+Jalankan pengujian berikut di **Lilith** untuk membuktikan port yang terbuka langsung membalas dan port yang tertutup langsung ditolak:
 
-```
+```bash
 nc -v 192.238.3.194 80
 nc -v 192.238.4.106 80
 nc -v 192.238.4.106 8080
@@ -462,13 +472,15 @@ nc -v 192.238.3.194 22
 nc -v 192.238.4.106 22
 ```
 
-<img width="978" height="435" alt="image" src="https://github.com/user-attachments/assets/2406a845-4737-4b3a-9168-8ec738fec44c" />
+<img src="https://github.com/user-attachments/assets/2406a845-4737-4b3a-9168-8ec738fec44c" width="550" alt="Pengujian nc dari Lilith">
 
-## Soal 9 
+---
 
-### Langkah 1: Donwload dan jalankan file break_routing.sh di Shigeru
+## Soal 9
 
-```
+### Langkah 1: Download dan jalankan `break_routing.sh` di Shigeru
+
+```bash
 URL="https://drive.google.com/file/d/1ub7LjL2BdZdVq6n_AbuqcO416Z8QJGVs/view"
 ID=$(echo "$URL" | sed -E 's|.*/d/([^/?&]+).*|\1|; s|.*[?&]id=([^&]+).*|\1|')
 rm -f /tmp/break_routing.sh
@@ -477,27 +489,27 @@ rm -f /tmp/break_routing.sh
 
 ### Langkah 2: Uji gejala sabotase (Lilith & Armisael)
 
-- Lilith
+**Lilith**
 
-  ```
-    ping -c 3 192.238.4.83
-  ```
-
-  <img width="905" height="162" alt="image" src="https://github.com/user-attachments/assets/e4f66bb5-b738-41de-8cdd-4ba4cb37663f" />
-  
-- Armisael
-
-  ```
-    ping -c 2 192.238.4.81
-  ```
-
-  <img width="922" height="219" alt="image" src="https://github.com/user-attachments/assets/d5d5da07-b3cc-441a-a5d1-6a35e787bf6e" />
-
-  Ping Armisael berhasil karena masih dalam satu LAN dengan Shigeru, sedangkan paket dari Lilith perlu diteruskan lintas interface oleh Shigeru dan dirutekan kembali ke Switch-Dogma sehingga tidak berhasil karena jalur lintas jaringan inilah yang dilumpuhkan oleh break_routing.sh.
-
-### Langkah 3: Ambil diagnosa di node Shigeru 
-
+```bash
+ping -c 3 192.238.4.83
 ```
+
+<img src="https://github.com/user-attachments/assets/e4f66bb5-b738-41de-8cdd-4ba4cb37663f" width="550" alt="Ping Lilith ke Armisael (gagal)">
+
+**Armisael**
+
+```bash
+ping -c 2 192.238.4.81
+```
+
+<img src="https://github.com/user-attachments/assets/d5d5da07-b3cc-441a-a5d1-6a35e787bf6e" width="550" alt="Ping Armisael ke Shigeru">
+
+> Ping Armisael berhasil karena masih dalam satu LAN dengan Shigeru, sedangkan paket dari Lilith perlu diteruskan lintas interface oleh Shigeru dan dirutekan kembali ke Switch-Dogma sehingga tidak berhasil karena jalur lintas jaringan inilah yang dilumpuhkan oleh `break_routing.sh`.
+
+### Langkah 3: Ambil diagnosa di node Shigeru
+
+```bash
 sysctl net.ipv4.ip_forward
 ip -br a
 ip route
@@ -505,18 +517,18 @@ ip rule
 iptables -S
 ```
 
-<img width="985" height="513" alt="image" src="https://github.com/user-attachments/assets/e31afac2-2acd-4349-8881-839d2c8a2cd5" />
+<img src="https://github.com/user-attachments/assets/e31afac2-2acd-4349-8881-839d2c8a2cd5" width="550" alt="Diagnosa Shigeru">
 
-Dari foto tersebut kita bisa melihat ada 4 kerusakan yang disebabkan oleh break_routing.sh 
+Dari gambar tersebut kita bisa melihat ada 4 kerusakan yang disebabkan oleh `break_routing.sh`:
 
-1. IP Fowarding dimatikan: Sehingga kernel Shigeru menolak untuk meneruskan paket lintas interface, jadi paket ping dari Lilith yang masuk lewat eth0 tidak diteruskan ke subnet Armisael.
-2. Policy Routing Jebakan (90: from all iif eth1 lookup 100): Terdapat aturan policy routing berprioritas tinggi (90, dieksekusi sebelum tabel main di prioritas 32766) yang memaksa seluruh trafik masuk dari LAN eth1 membaca tabel routing 100 (berisi rute unreachable), sehingga paket dari Armisael langsung digagalkan sebelum sempat membaca tabel routing utama.
-3. Rute Blackhole ke Subnet Lilith (blackhole 192.238.4.72/29): Ditambahkan rute blackhole khusus mengarah ke segmen jaringan 192.238.4.72/29 (tempat Lilith 192.238.4.75 berada), yang membuat setiap paket balasan dari Armisael menuju Lilith langsung dibuang secara diam-diam oleh Shigeru.
-4. Rute Blackhole ke Subnet Lilith (blackhole 192.238.4.72/29): Ditambahkan rute blackhole khusus mengarah ke segmen jaringan 192.238.4.72/29 (tempat Lilith 192.238.4.75 berada), yang membuat setiap paket balasan dari Armisael menuju Lilith langsung dibuang secara diam-diam oleh Shigeru.
+1. **IP Forwarding dimatikan:** Sehingga kernel Shigeru menolak untuk meneruskan paket lintas interface, jadi paket ping dari Lilith yang masuk lewat `eth0` tidak diteruskan ke subnet Armisael.
+2. **Policy Routing jebakan (`90: from all iif eth1 lookup 100`):** Terdapat aturan policy routing berprioritas tinggi (90, dieksekusi sebelum tabel main di prioritas 32766) yang memaksa seluruh trafik masuk dari LAN `eth1` membaca tabel routing 100 (berisi rute *unreachable*), sehingga paket dari Armisael langsung digagalkan sebelum sempat membaca tabel routing utama.
+3. **Rute blackhole ke subnet Lilith (`blackhole 192.238.4.72/29`):** Ditambahkan rute blackhole khusus mengarah ke segmen jaringan `192.238.4.72/29` (tempat Lilith `192.238.4.75` berada), yang membuat setiap paket balasan dari Armisael menuju Lilith langsung dibuang secara diam-diam oleh Shigeru.
+4. **Rute blackhole ke subnet Lilith (`blackhole 192.238.4.72/29`):** Ditambahkan rute blackhole khusus mengarah ke segmen jaringan `192.238.4.72/29` (tempat Lilith `192.238.4.75` berada), yang membuat setiap paket balasan dari Armisael menuju Lilith langsung dibuang secara diam-diam oleh Shigeru.
 
-### Langkah 4: Perbaikan dan Auto-Start saat restart di Shigeru
+### Langkah 4: Perbaikan dan auto-start saat restart di Shigeru
 
-```
+```bash
 # 1. Perbaiki langsung kondisi jaringan Shigeru saat ini
 sysctl -w net.ipv4.ip_forward=1
 ip rule del iif eth1 lookup 100 priority 90 2>/dev/null
@@ -537,165 +549,143 @@ ip route replace default via 192.238.4.153 dev eth0
 EOF
 ```
 
-### Langkah 5: Verifikasi & Bukti perbaikan 
+### Langkah 5: Verifikasi & bukti perbaikan
 
-1. Membuktikan bahwa IP Fowarding sudah berjalan, blackhole hilang dan ip rule bersih
+#### 1. Membuktikan bahwa IP Forwarding sudah berjalan, blackhole hilang, dan `ip rule` bersih
 
-   ```
-    sysctl net.ipv4.ip_forward
-    ip route
-    ip rule
-   ```
+```bash
+sysctl net.ipv4.ip_forward
+ip route
+ip rule
+```
 
-   <img width="903" height="323" alt="image" src="https://github.com/user-attachments/assets/eed852a8-a83b-48e3-a115-d7842c3a379c" />
+<img src="https://github.com/user-attachments/assets/eed852a8-a83b-48e3-a115-d7842c3a379c" width="550" alt="Verifikasi Shigeru">
 
-2. Membuktikan bahwa Lilith bisa kembali ping ke Armisael
+#### 2. Membuktikan bahwa Lilith bisa kembali ping ke Armisael
 
-   ```
-    ping -c 3 192.238.4.83
-   ```
+```bash
+ping -c 3 192.238.4.83
+```
 
-   <img width="886" height="245" alt="image" src="https://github.com/user-attachments/assets/88dc59ae-90cf-4da8-a054-922f312e0490" />
+<img src="https://github.com/user-attachments/assets/88dc59ae-90cf-4da8-a054-922f312e0490" width="550" alt="Ping Lilith ke Armisael (berhasil)">
 
+---
 
 ## Soal 10
 
-### Langkah 1: Unduh dan jalankan file break_nat.sh di Misato dan Gendou
+### Langkah 1: Unduh dan jalankan `break_nat.sh` di Misato dan Gendou
 
-```
+```bash
 URL="https://drive.google.com/file/d/1oX7r9BmMPumqrIb71Vbk43Y6CQEOvDRJ/view"
 ID=$(echo "$URL" | sed -E 's|.*/d/([^/?&]+).*|\1|; s|.*[?&]id=([^&]+).*|\1|')
 rm -f /tmp/break_nat.sh
 (wget --no-check-certificate -qO /tmp/break_nat.sh "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" || curl -kfsSL "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" -o /tmp/break_nat.sh) && sed -i 's/\r$//' /tmp/break_nat.sh && [ "$(head -n 1 /tmp/break_nat.sh)" = '#!/bin/sh' ] && sh /tmp/break_nat.sh
 ```
 
-### Langkah 2: Uji Gejala Kerusakan
+### Langkah 2: Uji gejala kerusakan
 
-1. Di console Unit-01
+#### 1. Di console Unit-01
 
-   ```
-    ping -c 3 8.8.8.8
-    ping -c 2 192.238.4.75
-   ```
+```bash
+ping -c 3 8.8.8.8
+ping -c 2 192.238.4.75
+```
 
-   <img width="995" height="379" alt="image" src="https://github.com/user-attachments/assets/9fff8c9d-4690-4109-b85e-7336161ef848" />
+<img src="https://github.com/user-attachments/assets/9fff8c9d-4690-4109-b85e-7336161ef848" width="550" alt="Gejala di Unit-01">
 
-2. Di console spy
+#### 2. Di console Spy
 
-   ```
-    ping -c 3 8.8.8.8
-   ```
+```bash
+ping -c 3 8.8.8.8
+```
 
-   <img width="862" height="243" alt="image" src="https://github.com/user-attachments/assets/90b9300e-0dba-4c9f-bd13-538152175c22" />
+<img src="https://github.com/user-attachments/assets/90b9300e-0dba-4c9f-bd13-538152175c22" width="550" alt="Gejala di Spy">
 
 ### Langkah 3: Diagnosa di Misato dan Gendou
 
-```
+```bash
 iptables -t nat -S
 iptables -S
 sysctl net.ipv4.ip_forward
 ```
 
-- Misato
+**Misato**
 
-  <img width="1056" height="353" alt="image" src="https://github.com/user-attachments/assets/dc186b64-c4e5-48af-a367-fd13563e03af" />
+<img src="https://github.com/user-attachments/assets/dc186b64-c4e5-48af-a367-fd13563e03af" width="550" alt="Diagnosa Misato">
 
-- Gendou
+**Gendou**
 
-  <img width="1033" height="572" alt="image" src="https://github.com/user-attachments/assets/0f58aa63-b866-4c3a-a268-bfe4f5d9ca6d" />
+<img src="https://github.com/user-attachments/assets/0f58aa63-b866-4c3a-a268-bfe4f5d9ca6d" width="550" alt="Diagnosa Gendou">
 
-Hasil Analisis
+### Hasil Analisis
 
-1. Dua penyebab sabotase pada Tabel NAT:
-   - Aturan SNAT Palsu di Misato (-A POSTROUTING -s 192.238.4.64/29 ! -d 192.238.0.0/16 -o eth0 -j SNAT --to-source 172.31.99.1):
-     Setiap paket yang berasal dari subnet Cage dengan tujuan ke luar jaringan internal diubah alamat IP nya oleh Misato menjadi alamat IP fiktif. Akibatnya, ketika paket balasan dari internet kembali ke Gendou dan di di-un-NAT ke 172.31.99.1, Gendou tidak memiliki rute menuju 172.31.99.1 sehingga paket balasan dibuang (drop).
-   - Aturan Bypass RETURN di Gendou (-A POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN):
-Pada rantai POSTROUTING di Gendou, disisipkan aturan -j RETURN khusus untuk sumber 192.238.4.64/29 di baris pertama sebelum aturan -A POSTROUTING -o eth0 -j MASQUERADE. Jika aturan SNAT palsu di Misato saja yang dihapus tanpa menghapus aturan RETURN di Gendou, paket dari Cage (192.238.4.64/29) akan langsung keluar dari rantai POSTROUTING tanpa terkena MASQUERADE, sehingga keluar ke internet memakai IP privat (192.238.4.66) yang tidak bisa dirutekan kembali oleh 8.8.8.8.
+#### 1. Dua penyebab sabotase pada tabel NAT
 
-2. Mengapa Subnet Cage Terdampak, Sedangkan Intel Tidak & Ping ke Lilith Tetap Normal?
-   - Kedua aturan sabotase di node Misato dan Gendou itu secara spesifik diarahkan ke subnet Cage yang berisi Unit-00, Unit-01, dan Unit-02. Sehingga node seperti spy yang berada di subnet Intel masih bisa berjalan dengan normal.
- 
-  - Ping dari Cage ke Lilith (192.238.4.75) Normal: Alamat 192.238.4.75 berada di dalam blok internal 192.238.0.0/16, sehingga tidak memicu kondisi ! -d 192.238.0.0/16 di Misato dan juga tidak keluar melalui interface WAN eth0 di Gendou.
- 
-3. Di Router Mana Alamat Sumber Diterjemahkan?
+**a. Aturan SNAT palsu di Misato**
 
-   - Alamat sumber privat seluruh klien (termasuk Unit-01 192.238.4.66) diterjemahkan (NAT Masquerade) secara terpusat di router gateway terluar yang terhubung langsung ke Cloud/Internet, yaitu Gendou (melalui interface WAN eth0 dengan aturan -A POSTROUTING -o eth0 -j MASQUERADE), sementara router internal seperti Misato hanya bertugas melakukan routing tanpa NAT.
+```
+-A POSTROUTING -s 192.238.4.64/29 ! -d 192.238.0.0/16 -o eth0 -j SNAT --to-source 172.31.99.1
+```
 
-### Langkah 4: Perbaikan Permanen di Misato dan Gendou
+Setiap paket yang berasal dari subnet Cage dengan tujuan ke luar jaringan internal diubah alamat IP-nya oleh Misato menjadi alamat IP fiktif. Akibatnya, ketika paket balasan dari internet kembali ke Gendou dan di-un-NAT ke `172.31.99.1`, Gendou tidak memiliki rute menuju `172.31.99.1` sehingga paket balasan dibuang (*drop*).
 
-Jalankan perintah berikut pada masing" console: 
+**b. Aturan bypass RETURN di Gendou**
 
-- Misato
+```
+-A POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN
+```
 
-  ```
-    iptables -t nat -D POSTROUTING -s 192.238.4.64/29 ! -d 192.238.0.0/16 -o eth0 -j SNAT --to-source 172.31.99.1 2>/dev/null
-    printf '#!/bin/bash\niptables -t nat -D POSTROUTING -s 192.238.4.64/29 ! -d 192.238.0.0/16 -o eth0 -j SNAT --to-source 172.31.99.1 2>/dev/null || true\n' > /root/fix_soal10.sh && chmod +x /root/fix_soal10.sh && touch /root/.bashrc && sed -i '/# === FIX SOAL 10 ===/,$d' /etc/profile /root/.bashrc && printf '\n# === FIX SOAL 10 ===\n[ -f /root/fix_soal10.sh ] && bash /root/fix_soal10.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null
-  ```
-  
+Pada rantai POSTROUTING di Gendou, disisipkan aturan `-j RETURN` khusus untuk sumber `192.238.4.64/29` di baris pertama sebelum aturan `-A POSTROUTING -o eth0 -j MASQUERADE`. Jika aturan SNAT palsu di Misato saja yang dihapus tanpa menghapus aturan RETURN di Gendou, paket dari Cage (`192.238.4.64/29`) akan langsung keluar dari rantai POSTROUTING tanpa terkena MASQUERADE, sehingga keluar ke internet memakai IP privat (`192.238.4.66`) yang tidak bisa dirutekan kembali oleh `8.8.8.8`.
 
+#### 2. Mengapa subnet Cage terdampak, sedangkan Intel tidak, dan ping ke Lilith tetap normal?
 
-- Gendou
+- Kedua aturan sabotase di node Misato dan Gendou secara spesifik diarahkan ke subnet Cage yang berisi Unit-00, Unit-01, dan Unit-02. Sehingga node seperti Spy yang berada di subnet Intel masih bisa berjalan dengan normal.
+- **Ping dari Cage ke Lilith (`192.238.4.75`) normal:** Alamat `192.238.4.75` berada di dalam blok internal `192.238.0.0/16`, sehingga tidak memicu kondisi `! -d 192.238.0.0/16` di Misato dan juga tidak keluar melalui interface WAN `eth0` di Gendou.
 
-  ```
-    iptables -t nat -D POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN 2>/dev/null
-    printf '#!/bin/bash\niptables -t nat -D POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN 2>/dev/null || true\n' > /root/fix_soal10.sh && chmod +x /root/fix_soal10.sh && touch /root/.bashrc && sed -i '/# === FIX SOAL 10 ===/,$d' /etc/profile /root/.bashrc && printf '\n# === FIX SOAL 10 ===\n[ -f /root/fix_soal10.sh ] && bash /root/fix_soal10.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null
-  ```
+#### 3. Di router mana alamat sumber diterjemahkan?
 
-### Langkah 5: Verifikasi & Bukti Hasil Perbaikan 
+Alamat sumber privat seluruh klien (termasuk Unit-01 `192.238.4.66`) diterjemahkan (NAT Masquerade) secara terpusat di router gateway terluar yang terhubung langsung ke Cloud/Internet, yaitu **Gendou** (melalui interface WAN `eth0` dengan aturan `-A POSTROUTING -o eth0 -j MASQUERADE`), sementara router internal seperti Misato hanya bertugas melakukan routing tanpa NAT.
 
-1. Di console Misato
+### Langkah 4: Perbaikan permanen di Misato dan Gendou
 
-   ```
-    iptables -t nat -S
-   ```
-   <img width="540" height="140" alt="image" src="https://github.com/user-attachments/assets/cc4c6f1f-b7cf-4963-a14a-1caf45a971bb" />
+Jalankan perintah berikut pada masing-masing console:
 
-2. Di console Gendou
+**Misato**
 
-   ```
-    iptables -t nat -S
-   ```
-   <img width="572" height="165" alt="image" src="https://github.com/user-attachments/assets/affae086-3b46-4d94-9126-82cfdd3c0532" />
+```bash
+iptables -t nat -D POSTROUTING -s 192.238.4.64/29 ! -d 192.238.0.0/16 -o eth0 -j SNAT --to-source 172.31.99.1 2>/dev/null
+printf '#!/bin/bash\niptables -t nat -D POSTROUTING -s 192.238.4.64/29 ! -d 192.238.0.0/16 -o eth0 -j SNAT --to-source 172.31.99.1 2>/dev/null || true\n' > /root/fix_soal10.sh && chmod +x /root/fix_soal10.sh && touch /root/.bashrc && sed -i '/# === FIX SOAL 10 ===/,$d' /etc/profile /root/.bashrc && printf '\n# === FIX SOAL 10 ===\n[ -f /root/fix_soal10.sh ] && bash /root/fix_soal10.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null
+```
 
-3. Di console Unit-01
+**Gendou**
 
-   ```
-    ping -c 3 8.8.8.8
-   ```
-   <img width="864" height="247" alt="image" src="https://github.com/user-attachments/assets/3917e92c-c297-44c4-9b32-924bc65a510b" />
+```bash
+iptables -t nat -D POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN 2>/dev/null
+printf '#!/bin/bash\niptables -t nat -D POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN 2>/dev/null || true\n' > /root/fix_soal10.sh && chmod +x /root/fix_soal10.sh && touch /root/.bashrc && sed -i '/# === FIX SOAL 10 ===/,$d' /etc/profile /root/.bashrc && printf '\n# === FIX SOAL 10 ===\n[ -f /root/fix_soal10.sh ] && bash /root/fix_soal10.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null
+```
 
+### Langkah 5: Verifikasi & bukti hasil perbaikan
 
+#### 1. Di console Misato
 
+```bash
+iptables -t nat -S
+```
 
+<img src="https://github.com/user-attachments/assets/cc4c6f1f-b7cf-4963-a14a-1caf45a971bb" width="450" alt="Verifikasi NAT Misato">
 
+#### 2. Di console Gendou
 
-     
+```bash
+iptables -t nat -S
+```
 
+<img src="https://github.com/user-attachments/assets/affae086-3b46-4d94-9126-82cfdd3c0532" width="450" alt="Verifikasi NAT Gendou">
 
-  
+#### 3. Di console Unit-01
 
+```bash
+ping -c 3 8.8.8.8
+```
 
-  
-
-
-
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-     
-  
-     
+<img src="https://github.com/user-attachments/assets/3917e92c-c297-44c4-9b32-924bc65a510b" width="550" alt="Verifikasi ping Unit-01">
