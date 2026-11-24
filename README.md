@@ -557,6 +557,128 @@ EOF
 
    <img width="886" height="245" alt="image" src="https://github.com/user-attachments/assets/88dc59ae-90cf-4da8-a054-922f312e0490" />
 
+
+## Soal 10
+
+### Langkah 1: Unduh dan jalankan file break_nat.sh di Misato dan Gendou
+
+```
+URL="https://drive.google.com/file/d/1oX7r9BmMPumqrIb71Vbk43Y6CQEOvDRJ/view"
+ID=$(echo "$URL" | sed -E 's|.*/d/([^/?&]+).*|\1|; s|.*[?&]id=([^&]+).*|\1|')
+rm -f /tmp/break_nat.sh
+(wget --no-check-certificate -qO /tmp/break_nat.sh "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" || curl -kfsSL "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" -o /tmp/break_nat.sh) && sed -i 's/\r$//' /tmp/break_nat.sh && [ "$(head -n 1 /tmp/break_nat.sh)" = '#!/bin/sh' ] && sh /tmp/break_nat.sh
+```
+
+### Langkah 2: Uji Gejala Kerusakan
+
+1. Di console Unit-01
+
+   ```
+    ping -c 3 8.8.8.8
+    ping -c 2 192.238.4.75
+   ```
+
+   <img width="995" height="379" alt="image" src="https://github.com/user-attachments/assets/9fff8c9d-4690-4109-b85e-7336161ef848" />
+
+2. Di console spy
+
+   ```
+    ping -c 3 8.8.8.8
+   ```
+
+   <img width="862" height="243" alt="image" src="https://github.com/user-attachments/assets/90b9300e-0dba-4c9f-bd13-538152175c22" />
+
+### Langkah 3: Diagnosa di Misato dan Gendou
+
+```
+iptables -t nat -S
+iptables -S
+sysctl net.ipv4.ip_forward
+```
+
+- Misato
+
+  <img width="1056" height="353" alt="image" src="https://github.com/user-attachments/assets/dc186b64-c4e5-48af-a367-fd13563e03af" />
+
+- Gendou
+
+  <img width="1033" height="572" alt="image" src="https://github.com/user-attachments/assets/0f58aa63-b866-4c3a-a268-bfe4f5d9ca6d" />
+
+Hasil Analisis
+
+1. Dua penyebab sabotase pada Tabel NAT:
+   - Aturan SNAT Palsu di Misato (-A POSTROUTING -s 192.238.4.64/29 ! -d 192.238.0.0/16 -o eth0 -j SNAT --to-source 172.31.99.1):
+     Setiap paket yang berasal dari subnet Cage dengan tujuan ke luar jaringan internal diubah alamat IP nya oleh Misato menjadi alamat IP fiktif. Akibatnya, ketika paket balasan dari internet kembali ke Gendou dan di di-un-NAT ke 172.31.99.1, Gendou tidak memiliki rute menuju 172.31.99.1 sehingga paket balasan dibuang (drop).
+   - Aturan Bypass RETURN di Gendou (-A POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN):
+Pada rantai POSTROUTING di Gendou, disisipkan aturan -j RETURN khusus untuk sumber 192.238.4.64/29 di baris pertama sebelum aturan -A POSTROUTING -o eth0 -j MASQUERADE. Jika aturan SNAT palsu di Misato saja yang dihapus tanpa menghapus aturan RETURN di Gendou, paket dari Cage (192.238.4.64/29) akan langsung keluar dari rantai POSTROUTING tanpa terkena MASQUERADE, sehingga keluar ke internet memakai IP privat (192.238.4.66) yang tidak bisa dirutekan kembali oleh 8.8.8.8.
+
+2. Mengapa Subnet Cage Terdampak, Sedangkan Intel Tidak & Ping ke Lilith Tetap Normal?
+   - Kedua aturan sabotase di node Misato dan Gendou itu secara spesifik diarahkan ke subnet Cage yang berisi Unit-00, Unit-01, dan Unit-02. Sehingga node seperti spy yang berada di subnet Intel masih bisa berjalan dengan normal.
+ 
+  - Ping dari Cage ke Lilith (192.238.4.75) Normal: Alamat 192.238.4.75 berada di dalam blok internal 192.238.0.0/16, sehingga tidak memicu kondisi ! -d 192.238.0.0/16 di Misato dan juga tidak keluar melalui interface WAN eth0 di Gendou.
+ 
+3. Di Router Mana Alamat Sumber Diterjemahkan?
+
+   - Alamat sumber privat seluruh klien (termasuk Unit-01 192.238.4.66) diterjemahkan (NAT Masquerade) secara terpusat di router gateway terluar yang terhubung langsung ke Cloud/Internet, yaitu Gendou (melalui interface WAN eth0 dengan aturan -A POSTROUTING -o eth0 -j MASQUERADE), sementara router internal seperti Misato hanya bertugas melakukan routing tanpa NAT.
+
+### Langkah 4: Perbaikan Permanen di Misato dan Gendou
+
+Jalankan perintah berikut pada masing" console: 
+
+- Misato
+
+  ```
+    iptables -t nat -D POSTROUTING -s 192.238.4.64/29 ! -d 192.238.0.0/16 -o eth0 -j SNAT --to-source 172.31.99.1 2>/dev/null
+    printf '#!/bin/bash\niptables -t nat -D POSTROUTING -s 192.238.4.64/29 ! -d 192.238.0.0/16 -o eth0 -j SNAT --to-source 172.31.99.1 2>/dev/null || true\n' > /root/fix_soal10.sh && chmod +x /root/fix_soal10.sh && touch /root/.bashrc && sed -i '/# === FIX SOAL 10 ===/,$d' /etc/profile /root/.bashrc && printf '\n# === FIX SOAL 10 ===\n[ -f /root/fix_soal10.sh ] && bash /root/fix_soal10.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null
+  ```
+  
+
+
+- Gendou
+
+  ```
+    iptables -t nat -D POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN 2>/dev/null
+    printf '#!/bin/bash\niptables -t nat -D POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN 2>/dev/null || true\n' > /root/fix_soal10.sh && chmod +x /root/fix_soal10.sh && touch /root/.bashrc && sed -i '/# === FIX SOAL 10 ===/,$d' /etc/profile /root/.bashrc && printf '\n# === FIX SOAL 10 ===\n[ -f /root/fix_soal10.sh ] && bash /root/fix_soal10.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null
+  ```
+
+### Langkah 5: Verifikasi & Bukti Hasil Perbaikan 
+
+1. Di console Misato
+
+   ```
+    iptables -t nat -S
+   ```
+   <img width="540" height="140" alt="image" src="https://github.com/user-attachments/assets/cc4c6f1f-b7cf-4963-a14a-1caf45a971bb" />
+
+2. Di console Gendou
+
+   ```
+    iptables -t nat -S
+   ```
+   <img width="572" height="165" alt="image" src="https://github.com/user-attachments/assets/affae086-3b46-4d94-9126-82cfdd3c0532" />
+
+3. Di console Unit-01
+
+   ```
+    ping -c 3 8.8.8.8
+   ```
+   <img width="864" height="247" alt="image" src="https://github.com/user-attachments/assets/3917e92c-c297-44c4-9b32-924bc65a510b" />
+
+
+
+
+
+
+     
+
+
+  
+
+
+  
+
+
+
   
 
 
