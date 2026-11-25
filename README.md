@@ -1177,3 +1177,257 @@ ping -c 3 -W 1 192.238.4.58
 ## 8. Kesimpulan
 
 Kerusakan disebabkan oleh tiga kesalahan konfigurasi: tidak adanya rule `ESTABLISHED,RELATED` pada policy `INPUT DROP`, adanya blokir DNS keluar (UDP port 53), dan tidak adanya izin untuk TCP 5000. Rule ICMP yang terlalu luas juga ikut memblokir balasan ping. Setelah blok firewall diganti dengan konfigurasi yang benar, Casper kembali bisa ping keluar dan `apt-get update`, Unit-00 dapat terhubung ke TCP 5000, dan ping masuk ke Casper tetap ditolak. Policy `INPUT` tetap `DROP`, sehingga tujuan hardening tidak dibatalkan.
+
+# Laporan Pengerjaan Soal 13 — Brankas Balthasar
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Magi-Balthasar, Magi-Casper, Magi-Melchior, Unit-01, Lilith
+
+---
+
+## 1. Soal
+
+> **Brankas Balthasar:** Balthasar menyimpan seluruh data Geofront, tapi terlalu banyak yang bisa mengetuk pintunya, termasuk tetangga satu switch. **Hanya Casper dan semua Pilot** yang boleh menyambung ke **TCP 5000 dan 5001**. Node lain, termasuk yang satu switch, harus **langsung ditolak** di kedua port itu, bukan dibiarkan menggantung sampai timeout. Lalu lintas lain tidak boleh terganggu. Balthasar tetap harus bisa ping `8.8.8.8` dan menerima balasannya. Buktikan `nc` ke port 5000 dan 5001: **Unit-01 berhasil, Lilith dan Melchior ditolak seketika**.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Hanya Casper dan semua Pilot yang boleh ke TCP 5000 & 5001 | Rule `ACCEPT` per IP sumber untuk kedua port |
+| 2 | Node lain harus langsung ditolak (bukan timeout) | `REJECT --reject-with tcp-reset` (bukan `DROP`) |
+| 3 | Lalu lintas lain tidak terganggu | Policy `INPUT`, `FORWARD`, `OUTPUT` tetap `ACCEPT`; rule hanya menargetkan TCP 5000/5001 |
+| 4 | Balthasar tetap bisa ping `8.8.8.8` | Tidak ada rule yang menyentuh ICMP |
+
+### Alamat IP
+
+| Perangkat | IP | Peran pada Soal 13 |
+|-----------|----|--------------------|
+| Magi-Balthasar | `192.238.4.59` | Server yang diamankan (listener TCP 5000 & 5001) |
+| Magi-Casper | `192.238.4.58` | Diizinkan |
+| Unit-01 | `192.238.4.66` | Pilot — diizinkan |
+| Pilot | `192.238.4.67` | Pilot — diizinkan |
+| Unit-00 | `192.238.4.68` | Pilot — diizinkan |
+| Pilot | `192.238.3.130` | Pilot — diizinkan |
+| Magi-Melchior | `192.238.4.60` | Satu switch, **ditolak** |
+| Lilith | `192.238.4.74` | Lintas subnet, **ditolak** |
+
+---
+
+## 2. Langkah Pengerjaan di Magi-Balthasar
+
+### 2.1 Memeriksa skrip Soal 7 dan menambahkan blok firewall Soal 13
+
+Skrip `/root/balthasar.sh` dari Soal 7 diperiksa terlebih dahulu. Blok Soal 13 lalu ditambahkan secara idempoten: `sed` menghapus blok Soal 13 lama (jika ada) agar tidak terduplikasi, kemudian blok baru ditulis di bagian paling bawah.
+
+```bash
+# Cek isi skrip bawaan Soal 7
+cat /root/balthasar.sh
+
+# Hapus blok Soal 13 lama (jika ada) lalu tambahkan aturan Soal 13
+sed -i '/# === SOAL 13: FIREWALL ===/,$d' /root/balthasar.sh
+cat << 'EOF' >> /root/balthasar.sh
+
+# === SOAL 13: FIREWALL ===
+iptables -F
+iptables -X
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+
+# Hanya izinkan Magi-Casper dan seluruh Pilot ke TCP 5000 & 5001; tolak sisanya seketika
+for PORT in 5000 5001; do
+  iptables -A INPUT -p tcp -s 192.238.4.58  --dport $PORT -j ACCEPT
+  iptables -A INPUT -p tcp -s 192.238.4.66  --dport $PORT -j ACCEPT
+  iptables -A INPUT -p tcp -s 192.238.4.67  --dport $PORT -j ACCEPT
+  iptables -A INPUT -p tcp -s 192.238.4.68  --dport $PORT -j ACCEPT
+  iptables -A INPUT -p tcp -s 192.238.3.130 --dport $PORT -j ACCEPT
+  iptables -A INPUT -p tcp --dport $PORT -j REJECT --reject-with tcp-reset
+done
+EOF
+
+# Terapkan konfigurasi
+bash /root/balthasar.sh
+```
+**Penjelasan:**
+
+| Bagian | Fungsi |
+|--------|--------|
+| `iptables -F` / `-X` | Membersihkan semua rule dan custom chain lama |
+| `-P INPUT/FORWARD/OUTPUT ACCEPT` | Policy default tetap `ACCEPT` agar lalu lintas lain (termasuk ping ke `8.8.8.8`) tidak terganggu |
+| `-s <IP> --dport $PORT -j ACCEPT` (5 IP) | Mengizinkan Casper dan semua Pilot menyambung ke TCP 5000 dan 5001 |
+| `-p tcp --dport $PORT -j REJECT --reject-with tcp-reset` | Menolak seketika koneksi dari node lain dengan mengirim paket TCP RST |
+
+**Kenapa `REJECT --reject-with tcp-reset`, bukan `DROP`?**
+Soal meminta node lain "langsung ditolak, bukan dibiarkan menggantung sampai timeout". `DROP` membuang paket tanpa balasan sehingga klien menunggu sampai *timed out*. `REJECT --reject-with tcp-reset` mengirim RST, sehingga klien langsung menerima `Connection refused`.
+
+**Kenapa urutan rule penting?**
+Rule `ACCEPT` untuk kelima IP harus berada **di atas** rule `REJECT`. iptables membaca rule dari atas ke bawah dan berhenti pada kecocokan pertama. Jika `REJECT` berada di atas, semua koneksi, termasuk dari Casper dan Pilot, akan ditolak.
+
+---
+
+## 3. Pengujian dan Bukti
+
+### 3.1 Magi-Balthasar (`192.238.4.59`) — rule iptables, listener, dan ping ke internet
+
+```bash
+iptables -S
+ss -tlnp | grep nc
+ping -c 3 8.8.8.8
+```
+
+**Hasil:**
+
+```
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A INPUT -s 192.238.4.58/32  -p tcp -m tcp --dport 5000 -j ACCEPT
+-A INPUT -s 192.238.4.66/32  -p tcp -m tcp --dport 5000 -j ACCEPT
+-A INPUT -s 192.238.4.67/32  -p tcp -m tcp --dport 5000 -j ACCEPT
+-A INPUT -s 192.238.4.68/32  -p tcp -m tcp --dport 5000 -j ACCEPT
+-A INPUT -s 192.238.3.130/32 -p tcp -m tcp --dport 5000 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 5000 -j REJECT --reject-with tcp-reset
+-A INPUT -s 192.238.4.58/32  -p tcp -m tcp --dport 5001 -j ACCEPT
+-A INPUT -s 192.238.4.66/32  -p tcp -m tcp --dport 5001 -j ACCEPT
+-A INPUT -s 192.238.4.67/32  -p tcp -m tcp --dport 5001 -j ACCEPT
+-A INPUT -s 192.238.4.68/32  -p tcp -m tcp --dport 5001 -j ACCEPT
+-A INPUT -s 192.238.3.130/32 -p tcp -m tcp --dport 5001 -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 5001 -j REJECT --reject-with tcp-reset
+
+LISTEN 0 1  0.0.0.0:5000  0.0.0.0:*  users:(("nc.traditional",pid=412,fd=3))
+LISTEN 0 1  0.0.0.0:5001  0.0.0.0:*  users:(("nc.traditional",pid=413,fd=3))
+
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=110 time=19.8 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=110 time=19.7 ms
+64 bytes from 8.8.8.8: icmp_seq=3 ttl=110 time=19.7 ms
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2218ms
+```
+<img width="360" height="294" alt="Screenshot 2026-11-25 at 09 25 55" src="https://github.com/user-attachments/assets/2b44377d-9d4c-4bda-bc93-00b487088ffb" />
+
+![Balthasar: iptables -S, listener port 5000/5001, dan ping 8.8.8.8](b123b14b-image.png)
+
+**Analisis:**
+- Rule `ACCEPT` untuk kelima IP berada di atas rule `REJECT --reject-with tcp-reset` pada kedua port.
+- Port 5000 dan 5001 berstatus `LISTEN` (proses `nc.traditional`), sehingga layanan tetap hidup.
+- `ping 8.8.8.8` berhasil 0% packet loss, jadi lalu lintas lain tidak terganggu.
+
+### 3.2 Unit-01 (`192.238.4.66`) — koneksi ke TCP 5000 & 5001 (harus berhasil)
+
+```bash
+echo "halo dari Unit-01 (5000)" | nc -v -w 2 192.238.4.59 5000
+echo "halo dari Unit-01 (5001)" | nc -v -w 2 192.238.4.59 5001
+```
+
+**Hasil:**
+
+```
+Connection to 192.238.4.59 5000 port [tcp/*] succeeded!
+Connection to 192.238.4.59 5001 port [tcp/*] succeeded!
+```
+<img width="240" height="153" alt="Screenshot 2026-11-25 at 09 26 42" src="https://github.com/user-attachments/assets/6039229c-04e2-44f5-9c84-a31ea6ca4de5" />
+
+![Unit-01: nc ke Balthasar port 5000 dan 5001 berhasil](63fd7521-image.png)
+
+### 3.3 Lilith (`192.238.4.74`) — koneksi lintas subnet (harus langsung ditolak)
+
+```bash
+nc -v 192.238.4.59 5000
+nc -v 192.238.4.59 5001
+```
+
+**Hasil:**
+
+```
+nc: connect to 192.238.4.59 port 5000 (tcp) failed: Connection refused
+nc: connect to 192.238.4.59 port 5001 (tcp) failed: Connection refused
+```
+<img width="240" height="151" alt="Screenshot 2026-11-25 at 09 27 21" src="https://github.com/user-attachments/assets/faecaea6-34be-415d-ab6f-35538cb85dff" />
+
+![Lilith: nc ke Balthasar ditolak seketika (Connection refused)](f5db9170-image.png)
+
+### 3.4 Magi-Melchior (`192.238.4.60`) — tetangga satu switch (harus langsung ditolak)
+
+```bash
+nc -v 192.238.4.59 5000
+nc -v 192.238.4.59 5001
+```
+
+**Hasil:**
+
+```
+192.238.4.59: inverse host lookup failed: Unknown host
+(UNKNOWN) [192.238.4.59] 5000 (?) : Connection refused
+192.238.4.59: inverse host lookup failed: Unknown host
+(UNKNOWN) [192.238.4.59] 5001 (?) : Connection refused
+```
+<img width="242" height="70" alt="Screenshot 2026-11-25 at 09 28 10" src="https://github.com/user-attachments/assets/c097dfb1-d8eb-4b3a-ae52-52c3212075ee" />
+
+![Melchior: nc ke Balthasar ditolak seketika (Connection refused)](80e4fe83-image.png)
+
+> Pesan `inverse host lookup failed: Unknown host` hanya berasal dari `nc` yang mencoba reverse DNS pada IP tujuan. Pesan ini tidak berkaitan dengan firewall; bagian pentingnya adalah `Connection refused`.
+
+### 3.5 Magi-Balthasar — log pesan masuk dan counter paket
+
+```bash
+cat /tmp/balthasar_5000.log
+cat /tmp/balthasar_5001.log
+iptables -L INPUT -n -v
+```
+
+**Hasil:**
+
+```
+halo dari Unit-01 (5000)
+halo dari Unit-01 (5001)
+
+Chain INPUT (policy ACCEPT 3 packets, 252 bytes)
+ pkts bytes target  prot opt in  out  source         destination
+    0     0 ACCEPT  tcp  --  *   *    192.238.4.58   0.0.0.0/0   tcp dpt:5000
+    5   293 ACCEPT  tcp  --  *   *    192.238.4.66   0.0.0.0/0   tcp dpt:5000
+    0     0 ACCEPT  tcp  --  *   *    192.238.4.67   0.0.0.0/0   tcp dpt:5000
+    0     0 ACCEPT  tcp  --  *   *    192.238.4.68   0.0.0.0/0   tcp dpt:5000
+    0     0 ACCEPT  tcp  --  *   *    192.238.3.130  0.0.0.0/0   tcp dpt:5000
+    2   120 REJECT  tcp  --  *   *    0.0.0.0/0      0.0.0.0/0   tcp dpt:5000 reject-with tcp-reset
+    0     0 ACCEPT  tcp  --  *   *    192.238.4.58   0.0.0.0/0   tcp dpt:5001
+    5   293 ACCEPT  tcp  --  *   *    192.238.4.66   0.0.0.0/0   tcp dpt:5001
+    0     0 ACCEPT  tcp  --  *   *    192.238.4.67   0.0.0.0/0   tcp dpt:5001
+    0     0 ACCEPT  tcp  --  *   *    192.238.4.68   0.0.0.0/0   tcp dpt:5001
+    0     0 ACCEPT  tcp  --  *   *    192.238.3.130  0.0.0.0/0   tcp dpt:5001
+    2   120 REJECT  tcp  --  *   *    0.0.0.0/0      0.0.0.0/0   tcp dpt:5001 reject-with tcp-reset
+```
+<img width="240" height="208" alt="Screenshot 2026-11-25 at 09 29 08" src="https://github.com/user-attachments/assets/11164f2f-ad1e-40a2-bdee-4b01133d6f41" />
+
+![Balthasar: log pesan dari Unit-01 dan counter iptables](195a23b8-image.png)
+
+**Analisis:**
+- Kedua file log berisi pesan dari Unit-01, jadi koneksi dari Pilot benar-benar diterima oleh listener.
+- Rule `ACCEPT` untuk `192.238.4.66` (Unit-01) mencatat **5 paket / 293 byte** pada tiap port, sedangkan rule `ACCEPT` IP lain bernilai 0 karena tidak diuji.
+- Rule `REJECT` mencatat **2 paket / 120 byte** pada tiap port. Angka ini berasal dari satu percobaan koneksi Lilith dan satu dari Melchior (masing-masing satu paket SYN berukuran 60 byte, 2 × 60 = 120 byte), sehingga terbukti kedua node tersebut ditolak oleh rule `REJECT`.
+
+---
+
+## 4. Hasil dan Pembahasan
+
+| Skenario | Port | Hasil | Sesuai Soal |
+|----------|------|-------|:-----------:|
+| Unit-01 → Balthasar | 5000 | `succeeded!` | ✅ |
+| Unit-01 → Balthasar | 5001 | `succeeded!` | ✅ |
+| Lilith → Balthasar (lintas subnet) | 5000 & 5001 | `Connection refused` (seketika) | ✅ |
+| Melchior → Balthasar (satu switch) | 5000 & 5001 | `Connection refused` (seketika) | ✅ |
+| Balthasar → `8.8.8.8` | — | 0% packet loss | ✅ |
+
+**Pembahasan:**
+
+1. Hanya IP yang tercantum pada rule `ACCEPT` (Casper dan semua Pilot) yang dapat menyambung ke TCP 5000 dan 5001. Koneksi dari Unit-01 berhasil dan pesannya tercatat di log.
+2. Node lain, baik satu switch (Melchior) maupun lintas subnet (Lilith), ditolak **seketika** dengan `Connection refused`, bukan menggantung sampai *timed out*. Hal ini karena `REJECT --reject-with tcp-reset` membalas dengan paket RST.
+3. Karena policy default tetap `ACCEPT` dan rule hanya menargetkan TCP 5000/5001, lalu lintas lain tidak terganggu. Ini dibuktikan oleh `ping 8.8.8.8` yang tetap berhasil.
+4. Counter iptables (5 paket dari Unit-01 pada rule `ACCEPT`, 2 paket pada rule `REJECT` di tiap port) mengonfirmasi bahwa traffic diproses oleh rule yang tepat.
+
+---
+
+## 5. Kesimpulan
+
+Dengan menambahkan blok firewall Soal 13 pada `/root/balthasar.sh` berupa rule `ACCEPT` per IP untuk Casper dan seluruh Pilot, diikuti rule `REJECT --reject-with tcp-reset` pada TCP 5000 dan 5001, akses ke Balthasar berhasil dibatasi. Unit-01 dapat menyambung, sedangkan Lilith dan Melchior langsung ditolak. Policy default `ACCEPT` menjaga lalu lintas lain, termasuk ping ke `8.8.8.8`, tetap berjalan. Seluruh persyaratan Soal 13 terpenuhi.
