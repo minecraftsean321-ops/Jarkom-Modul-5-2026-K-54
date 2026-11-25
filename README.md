@@ -689,3 +689,206 @@ ping -c 3 8.8.8.8
 ```
 
 <img src="https://github.com/user-attachments/assets/3917e92c-c297-44c4-9b32-924bc65a510b" width="550" alt="Verifikasi ping Unit-01">
+
+# Laporan Pengerjaan Soal 11 — Casper Harus Jadi Hantu
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Magi-Casper, Magi-Balthasar, Lilith
+
+---
+
+## 1. Soal
+
+> **Casper harus jadi hantu:** Casper adalah MAGI paling rahasia. Kalau SEELE tahu ia masih hidup, mereka tahu ke mana harus menyerang. **Tidak ada perangkat lain yang boleh mem-ping Casper**, termasuk yang satu switch. Casper sendiri tetap boleh mem-ping siapa saja. Layanan **TCP 5000** Casper tetap hidup. Buktikan ping ke Casper dari Balthasar dan Lilith **gagal**, sedangkan ping dari Casper ke keduanya **berhasil**.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Tidak ada perangkat lain yang boleh ping Casper | Drop ICMP echo-request pada chain `INPUT` |
+| 2 | Casper tetap boleh ping ke siapa saja | Chain `OUTPUT` tetap `ACCEPT`; echo-reply yang kembali tidak ikut diblokir |
+| 3 | Layanan TCP 5000 tetap hidup | Rule hanya menargetkan ICMP, listener `nc` port 5000 tidak disentuh |
+
+### Alamat IP
+
+| Perangkat | IP | Keterangan |
+|-----------|----|------------|
+| Magi-Casper | `192.238.4.58` | Target yang disembunyikan |
+| Magi-Balthasar | `192.238.4.59` | Satu switch dengan Casper |
+| Lilith | `192.238.4.74` | Beda subnet (lintas router) |
+
+---
+
+## 2. Langkah Pengerjaan di Magi-Casper
+
+### 2.1 Menambahkan blok firewall Soal 11 ke `/root/casper.sh`
+
+Blok firewall ditambahkan di **bagian paling bawah** script `/root/casper.sh`. Perintah `sed` pertama menghapus blok Soal 11 lama (jika ada) agar tidak terduplikasi, tanpa menghapus bagian listener port 5000 di atasnya.
+
+```bash
+sed -i '/# === SOAL 11: FIREWALL ===/,$d' /root/casper.sh
+cat << 'EOF' >> /root/casper.sh
+
+# === SOAL 11: FIREWALL ===
+iptables -F
+iptables -X
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+
+# Blokir semua ping masuk (ICMP echo-request), tetap izinkan ping keluar
+iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+EOF
+```
+
+**Penjelasan:**
+
+| Perintah | Fungsi |
+|----------|--------|
+| `iptables -F` | Menghapus semua rule yang ada (flush) |
+| `iptables -X` | Menghapus semua custom chain |
+| `iptables -P INPUT/FORWARD/OUTPUT ACCEPT` | Policy default tetap `ACCEPT` agar trafik lain (termasuk TCP 5000) tidak terganggu |
+| `iptables -A INPUT -p icmp --icmp-type echo-request -j DROP` | Membuang semua ICMP echo-request (ping) yang masuk ke Casper |
+
+**Kenapa hanya `echo-request`, bukan semua ICMP?**
+Jika seluruh ICMP diblokir, balasan ping (`echo-reply`) untuk ping yang dikirim Casper ke luar juga ikut terbuang, sehingga Casper tidak bisa mem-ping siapa pun. Dengan hanya memblokir `echo-request` (type 8), Casper tetap bisa mengirim ping keluar dan menerima balasannya.
+
+> **Verifikasi:** Jalankan `cat /root/casper.sh` dan pastikan blok `# === SOAL 11: FIREWALL ===` muncul di bagian paling bawah tanpa menghapus bagian listener port 5000 di atasnya.
+
+### 2.2 Menerapkan konfigurasi dan mengecek iptables serta listener port 5000
+
+```bash
+bash /root/casper.sh
+iptables -S
+ss -tlnp | grep 5000
+```
+
+**Hasil:**
+
+```
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -j DROP
+LISTEN 0  1  0.0.0.0:5000  0.0.0.0:*  users:(("nc.traditional",pid=411,fd=3))
+```
+
+![Hasil bash casper.sh, iptables -S, dan ss -tlnp](afd05488-image.png)
+<img width="412" height="106" alt="Screenshot 2026-11-25 at 07 46 31" src="https://github.com/user-attachments/assets/df575be6-b370-4743-8a21-82a381555c9e" />
+
+
+**Analisis:**
+- `iptables -S` menampilkan rule `-A INPUT -p icmp -m icmp --icmp-type 8 -j DROP` dengan policy default `ACCEPT`. Rule pemblokiran ping masuk sudah aktif.
+- `ss -tlnp` menunjukkan proses `nc.traditional` tetap **LISTEN** di port **5000**, sehingga layanan TCP 5000 tetap hidup.
+
+---
+
+## 3. Pengujian Ping Masuk dan Keluar
+
+### 3.1 Dari Magi-Balthasar (`192.238.4.59`) → Casper (satu switch)
+
+Hasil yang diharapkan: **gagal / 100% packet loss**.
+
+```bash
+ping -c 3 -W 1 192.238.4.58
+```
+
+**Hasil:**
+
+```
+PING 192.238.4.58 (192.238.4.58) 56(84) bytes of data.
+
+--- 192.238.4.58 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2253ms
+```
+
+![Ping Balthasar ke Casper](df88acbb-image.png)
+<img width="412" height="114" alt="Screenshot 2026-11-25 at 07 48 09" src="https://github.com/user-attachments/assets/14ccd987-fb5a-4fd8-bacb-3c4c6836c752" />
+
+
+### 3.2 Dari Lilith (`192.238.4.74`) → Casper (lintas subnet)
+
+Hasil yang diharapkan: **gagal / 100% packet loss**.
+
+```bash
+ping -c 3 -W 1 192.238.4.58
+```
+
+**Hasil:**
+
+```
+PING 192.238.4.58 (192.238.4.58) 56(84) bytes of data.
+
+--- 192.238.4.58 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2290ms
+```
+
+![Ping Lilith ke Casper](2e349bdc-image.png)
+<img width="408" height="217" alt="Screenshot 2026-11-25 at 07 48 52" src="https://github.com/user-attachments/assets/dd8bc504-3406-4e25-b1d7-19f27b12bad5" />
+
+
+### 3.3 Dari Magi-Casper (`192.238.4.58`) → Balthasar & Lilith
+
+Hasil yang diharapkan: **berhasil / 0% packet loss**, lalu cek counter paket yang di-drop.
+
+```bash
+ping -c 3 192.238.4.59
+ping -c 3 192.238.4.74
+iptables -L INPUT -n -v
+```
+
+**Hasil:**
+
+```
+PING 192.238.4.59 (192.238.4.59) 56(84) bytes of data.
+64 bytes from 192.238.4.59: icmp_seq=1 ttl=64 time=0.580 ms
+64 bytes from 192.238.4.59: icmp_seq=2 ttl=64 time=0.208 ms
+64 bytes from 192.238.4.59: icmp_seq=3 ttl=64 time=0.331 ms
+
+--- 192.238.4.59 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2298ms
+rtt min/avg/max/mdev = 0.208/0.373/0.580/0.154 ms
+
+PING 192.238.4.74 (192.238.4.74) 56(84) bytes of data.
+64 bytes from 192.238.4.74: icmp_seq=1 ttl=62 time=1.28 ms
+64 bytes from 192.238.4.74: icmp_seq=2 ttl=62 time=0.816 ms
+64 bytes from 192.238.4.74: icmp_seq=3 ttl=62 time=0.565 ms
+
+--- 192.238.4.74 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2271ms
+rtt min/avg/max/mdev = 0.565/0.886/1.277/0.294 ms
+
+Chain INPUT (policy ACCEPT 6 packets, 504 bytes)
+ pkts bytes target  prot opt in  out  source      destination
+    6   504 DROP    icmp --  *   *    0.0.0.0/0   0.0.0.0/0    icmptype 8
+```
+
+![Ping Casper ke Balthasar & Lilith dan counter iptables](9c34eb2e-image.png)
+<img width="408" height="241" alt="Screenshot 2026-11-25 at 07 49 14" src="https://github.com/user-attachments/assets/a89070cb-9dce-408f-b561-8b278b4232eb" />
+
+
+---
+
+## 4. Hasil dan Analisis
+
+| Skenario | Arah | Hasil | Sesuai Soal |
+|----------|------|-------|:-----------:|
+| Balthasar → Casper | Masuk ke Casper | 100% packet loss | ✅ |
+| Lilith → Casper | Masuk ke Casper (lintas subnet) | 100% packet loss | ✅ |
+| Casper → Balthasar | Keluar dari Casper | 0% packet loss (TTL 64) | ✅ |
+| Casper → Lilith | Keluar dari Casper | 0% packet loss (TTL 62) | ✅ |
+| Listener TCP 5000 | — | `nc.traditional` tetap LISTEN | ✅ |
+
+**Pembahasan:**
+
+1. Ping dari Balthasar maupun Lilith ke Casper gagal 100% karena rule `INPUT ... --icmp-type echo-request -j DROP` membuang setiap permintaan ping sebelum diproses Casper. Karena dibuang (bukan di-reject), pengirim tidak menerima balasan apa pun, sehingga Casper seolah-olah tidak ada ("hantu").
+2. Ping dari Casper ke Balthasar dan Lilith berhasil karena chain `OUTPUT` berpolicy `ACCEPT`, dan balasan `echo-reply` (type 0) tidak cocok dengan rule DROP (type 8).
+3. Nilai TTL berbeda: Balthasar `64` (langsung, satu switch) dan Lilith `62` (melewati 2 router), menandakan Lilith berada di subnet lain.
+4. Counter rule DROP menunjukkan **6 paket / 504 byte**. Angka ini berasal dari 3 ping Balthasar + 3 ping Lilith (masing-masing 84 byte → 6 × 84 = 504 byte), membuktikan rule benar-benar menangkap ping masuk dari kedua perangkat.
+5. Layanan TCP 5000 tetap aktif karena rule hanya menargetkan protokol ICMP dan tidak mengubah trafik TCP.
+
+---
+
+## 5. Kesimpulan
+
+Dengan menambahkan satu rule `iptables -A INPUT -p icmp --icmp-type echo-request -j DROP` pada `/root/casper.sh`, Casper tidak dapat di-ping oleh perangkat mana pun (baik satu switch maupun lintas subnet), tetap dapat mem-ping ke luar, dan layanan TCP 5000 tetap berjalan. Seluruh persyaratan Soal 11 terpenuhi.
