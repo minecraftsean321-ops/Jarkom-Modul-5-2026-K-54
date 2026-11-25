@@ -2275,3 +2275,221 @@ rtt min/avg/max/mdev = 0.625/1.116/2.402/0.465 ms
 ## 5. Kesimpulan
 
 Dengan menambahkan rule `iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 5/second --limit-burst 5 -j ACCEPT` diikuti rule `DROP` untuk `echo-request` pada `/root/tokyo3.sh`, Tokyo3-Core hanya menjawab maksimal 5 ping per detik dan membuang kelebihannya. Ping rapat dari Lilith sebagian hilang (40% loss) dengan counter `DROP` yang naik, ping biasa dengan jeda 3 detik semuanya berhasil, dan ping yang dikirim Tokyo3-Core sendiri tidak terbatasi. Seluruh persyaratan Soal 15 terpenuhi.
+
+# Laporan Pengerjaan Soal 16 — Pencuri yang Mencoba Setiap Pintu
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Tokyo3-Core, Dummy-Plug (Switch-Lab)
+
+---
+
+## 1. Soal
+
+> **Pencuri yang mencoba setiap pintu:** dari Switch-Lab, Dummy-Plug mengetuk port sensitif Tokyo3-Core satu per satu seperti pencuri. Ritsuko ingin tahu setiap percobaannya, dan pintunya harus dibanting. Setiap koneksi TCP dari **Dummy-Plug** ke **port 22, 23, dan 3306** di Tokyo3-Core harus **dicatat di log** dengan prefix huruf besar `SCAN-NERV:`, lalu **ditolak seketika**. Port 80 dan 8080 tetap bisa diakses, dan klien lain tidak boleh terganggu. Buktikan `nc -w` dari Dummy-Plug ke port 22, 23, dan 3306 langsung ditolak, dan ke port 80 dan 8080 berhasil. Tunjukkan **counter rule pencatatan**, karena log kernel sering tidak terlihat di container.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Catat koneksi Dummy-Plug ke port 22, 23, 3306 | Rule `-j LOG --log-prefix "SCAN-NERV: "` |
+| 2 | Tolak seketika (bukan timeout) | Rule `-j REJECT --reject-with tcp-reset` |
+| 3 | Hanya Dummy-Plug dan hanya port tersebut | Pencocokan `-s 192.238.4.51 -p tcp --dport <port>` |
+| 4 | Port 80 dan 8080 tetap bisa diakses; klien lain tidak terganggu | Policy default `ACCEPT`, tidak ada rule untuk port 80/8080 |
+| 5 | Tidak merusak aturan Soal 15 | Aturan Soal 15 digabung ke blok yang sama dalam `/root/tokyo3.sh` |
+| 6 | Bukti pencatatan | Counter `pkts` pada rule `LOG` (`iptables -L INPUT -n -v`) |
+
+### Alamat IP
+
+| Perangkat | IP | Peran |
+|-----------|----|-------|
+| Tokyo3-Core | `192.238.4.106` | Target (listener TCP 80 dan 8080) |
+| Dummy-Plug | `192.238.4.51` | Penguji / "pencuri" |
+
+---
+
+## 2. Langkah 1 — Memperbarui `/root/tokyo3.sh` di Tokyo3-Core
+
+Aturan Soal 15 (rate-limit ping) dan Soal 16 digabung dalam satu blok secara idempoten. Perintah `sed` menghapus blok Soal 15 lama beserta isi setelahnya agar tidak terduplikasi, lalu blok gabungan ditulis ulang di bagian bawah script. Ini penting agar aturan Soal 15 tetap berlaku.
+
+```bash
+sed -i '/# === SOAL 15/,$d' /root/tokyo3.sh
+cat << 'EOF' >> /root/tokyo3.sh
+
+# === SOAL 15 & 16: FIREWALL ===
+iptables -F
+iptables -X
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+
+# Soal 15: Batasi ping masuk maksimal 5/detik dan buang kelebihannya
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 5/second --limit-burst 5 -j ACCEPT
+iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+
+# Soal 16: Catat (SCAN-NERV:) & tolak seketika koneksi TCP Dummy-Plug (192.238.4.51)
+for PORT in 22 23 3306; do
+  iptables -A INPUT -s 192.238.4.51 -p tcp --dport $PORT -j LOG --log-prefix "SCAN-NERV: "
+  iptables -A INPUT -s 192.238.4.51 -p tcp --dport $PORT -j REJECT --reject-with tcp-reset
+done
+EOF
+
+bash /root/tokyo3.sh
+```
+
+**Penjelasan:**
+
+| Bagian | Fungsi |
+|--------|--------|
+| `sed -i '/# === SOAL 15/,$d'` | Menghapus blok lama (Soal 15) agar tidak terduplikasi, lalu diganti blok gabungan |
+| Rule Soal 15 (`limit` + `DROP`) | Tetap dipertahankan: ping masuk maksimal 5/detik |
+| `-s 192.238.4.51 -p tcp --dport $PORT` | Hanya koneksi TCP dari Dummy-Plug ke port 22, 23, dan 3306 yang dikenai rule |
+| `-j LOG --log-prefix "SCAN-NERV: "` | Mencatat percobaan koneksi dengan prefix `SCAN-NERV:` |
+| `-j REJECT --reject-with tcp-reset` | Menolak seketika dengan paket TCP RST, sehingga klien langsung menerima `Connection refused` tanpa menunggu timeout |
+| Policy `INPUT ACCEPT` | Port 80, 8080, dan klien lain tidak tersentuh, sehingga tetap normal |
+
+**Kenapa `LOG` harus di atas `REJECT`?**
+`REJECT` adalah target terminasi: paket yang cocok langsung diproses dan tidak diteruskan ke rule berikutnya. `LOG` bukan target terminasi, sehingga paket tetap lanjut ke rule berikutnya setelah dicatat. Jika `REJECT` berada di atas, rule `LOG` tidak pernah tercapai dan tidak ada percobaan yang tercatat.
+
+---
+
+## 3. Langkah 2 — Pengujian dan Bukti
+
+### 3.1 Tokyo3-Core (`192.238.4.106`) — cek rule awal sebelum scanning
+
+```bash
+iptables -S
+iptables -L INPUT -n -v
+```
+
+**Hasil (rule):**
+
+```
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -m limit --limit 5/sec -j ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -j DROP
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 22   -j LOG --log-prefix "SCAN-NERV: "
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 22   -j REJECT --reject-with tcp-reset
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 23   -j LOG --log-prefix "SCAN-NERV: "
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 23   -j REJECT --reject-with tcp-reset
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 3306 -j LOG --log-prefix "SCAN-NERV: "
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 3306 -j REJECT --reject-with tcp-reset
+```
+
+**Hasil (counter awal):** seluruh counter `pkts` dan `bytes` bernilai `0` (policy `ACCEPT 0 packets, 0 bytes`).
+<img width="482" height="437" alt="Screenshot 2026-11-25 at 17 40 12" src="https://github.com/user-attachments/assets/9b0e6c10-8a43-44d5-b885-c1374aae6874" />
+
+![Tokyo3-Core: rule awal dan counter 0 sebelum scanning](cfb476fc-image.png)
+
+**Analisis:** Aturan Soal 15 tetap ada di dua baris pertama, diikuti pasangan `LOG` dan `REJECT` untuk port 22, 23, dan 3306 (dengan `LOG` selalu tepat di atas `REJECT`). Semua counter masih `0` sebagai pembanding sebelum pengujian.
+
+### 3.2 Dummy-Plug (`192.238.4.51`) — uji port tertutup (22, 23, 3306) dan port layanan (80, 8080)
+
+Karena Dummy-Plug memakai image Alpine (`nc` versi BusyBox yang tidak selalu mencetak pesan error), pengujian menampilkan **exit code** (`$?`) dan **durasi** (`time`) untuk membuktikan koneksi ke port 22, 23, dan 3306 gagal seketika (~0,00 detik), bukan menunggu timeout 2 detik.
+
+```bash
+for P in 22 23 3306; do
+  echo "=== Uji Port $P ==="
+  time nc -w 2 192.238.4.106 $P
+  echo "Exit code: $?"
+done
+
+echo "=== Uji Port 80 ==="
+nc -w 2 192.238.4.106 80
+
+echo "=== Uji Port 8080 ==="
+nc -w 2 192.238.4.106 8080
+```
+
+**Hasil:**
+
+```
+=== Uji Port 22 ===
+real    0m0.002s
+user    0m0.001s
+sys     0m0.000s
+Exit code: 1
+=== Uji Port 23 ===
+real    0m0.002s
+user    0m0.000s
+sys     0m0.001s
+Exit code: 1
+=== Uji Port 3306 ===
+real    0m0.002s
+user    0m0.001s
+sys     0m0.000s
+Exit code: 1
+=== Uji Port 80 ===
+Welcome to Tokyo3-Core
+=== Uji Port 8080 ===
+syifa imutz
+```
+<img width="477" height="426" alt="Screenshot 2026-11-25 at 17 40 52" src="https://github.com/user-attachments/assets/30f928c8-7a16-4c6c-8043-b9270989f492" />
+
+![Dummy-Plug: port 22/23/3306 ditolak seketika, port 80/8080 berhasil](f4036541-image.png)
+
+**Analisis:**
+- Port **22, 23, dan 3306** selesai dalam **0,002 detik** dengan `Exit code: 1`. Jauh di bawah batas `-w 2` (2 detik), sehingga koneksi ditolak seketika (TCP RST), bukan dibiarkan menggantung sampai timeout.
+- Port **80** membalas `Welcome to Tokyo3-Core` dan port **8080** membalas `syifa imutz`, sehingga layanan tetap dapat diakses.
+
+### 3.3 Tokyo3-Core — counter rule pencatatan (`LOG`) dan penolakan (`REJECT`)
+
+Log kernel sering tidak terlihat di container, sehingga bukti pencatatan diambil dari counter rule.
+
+```bash
+iptables -L INPUT -n -v
+```
+
+**Hasil:**
+
+```
+Chain INPUT (policy ACCEPT 20 packets, 1072 bytes)
+ pkts bytes target  prot opt in  out  source         destination
+    0     0 ACCEPT  icmp --  *   *    0.0.0.0/0      0.0.0.0/0   icmptype 8 limit: avg 5/sec burst 5
+    0     0 DROP    icmp --  *   *    0.0.0.0/0      0.0.0.0/0   icmptype 8
+    2   120 LOG     tcp  --  *   *    192.238.4.51   0.0.0.0/0   tcp dpt:22   LOG flags 0 level 4 prefix "SCAN-NERV: "
+    2   120 REJECT  tcp  --  *   *    192.238.4.51   0.0.0.0/0   tcp dpt:22   reject-with tcp-reset
+    2   120 LOG     tcp  --  *   *    192.238.4.51   0.0.0.0/0   tcp dpt:23   LOG flags 0 level 4 prefix "SCAN-NERV: "
+    2   120 REJECT  tcp  --  *   *    192.238.4.51   0.0.0.0/0   tcp dpt:23   reject-with tcp-reset
+    2   120 LOG     tcp  --  *   *    192.238.4.51   0.0.0.0/0   tcp dpt:3306 LOG flags 0 level 4 prefix "SCAN-NERV: "
+    2   120 REJECT  tcp  --  *   *    192.238.4.51   0.0.0.0/0   tcp dpt:3306 reject-with tcp-reset
+```
+<img width="480" height="263" alt="Screenshot 2026-11-25 at 17 42 04" src="https://github.com/user-attachments/assets/66e93990-3ab0-4408-a5c0-5119592c5a91" />
+
+![Tokyo3-Core: counter rule LOG dan REJECT naik setelah scanning](7e905575-image.png)
+
+**Analisis:**
+- Counter rule `LOG` untuk port **22, 23, dan 3306** masing-masing naik dari `0` menjadi **2 paket / 120 byte**, membuktikan setiap percobaan koneksi dari Dummy-Plug tercatat dengan prefix `SCAN-NERV: `.
+- Counter rule `REJECT` pada tiap port bernilai sama dengan `LOG` (**2 paket / 120 byte**), artinya setiap paket yang dicatat langsung ditolak dengan `tcp-reset`.
+- Counter rule ICMP (Soal 15) tetap `0` karena tidak ada ping pada pengujian ini, sehingga tidak ada interferensi antar-aturan.
+- Policy `INPUT ACCEPT` mencatat **20 paket / 1072 byte**: lalu lintas yang tidak cocok rule mana pun (termasuk koneksi ke port 80 dan 8080) tetap diterima.
+
+---
+
+## 4. Hasil dan Pembahasan
+
+| Pengujian | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
+|-----------|-----------------------|--------------|:-----------:|
+| Dummy-Plug → Tokyo3-Core port 22 | Ditolak seketika | `real 0m0.002s`, `Exit code: 1` | ✅ |
+| Dummy-Plug → Tokyo3-Core port 23 | Ditolak seketika | `real 0m0.002s`, `Exit code: 1` | ✅ |
+| Dummy-Plug → Tokyo3-Core port 3306 | Ditolak seketika | `real 0m0.002s`, `Exit code: 1` | ✅ |
+| Dummy-Plug → Tokyo3-Core port 80 | Berhasil | `Welcome to Tokyo3-Core` | ✅ |
+| Dummy-Plug → Tokyo3-Core port 8080 | Berhasil | `syifa imutz` | ✅ |
+| Counter rule `LOG` (prefix `SCAN-NERV: `) | Naik | 2 paket / 120 byte per port | ✅ |
+| Counter rule `REJECT` | Naik | 2 paket / 120 byte per port | ✅ |
+
+**Pembahasan:**
+
+1. **Pencatatan dan penolakan berpasangan.** Untuk tiap port sensitif (22, 23, 3306) dipasang dua rule berurutan: `LOG` dulu agar percobaan tercatat, lalu `REJECT --reject-with tcp-reset` untuk membanting pintu. Counter keduanya sama, membuktikan setiap koneksi yang dicatat langsung ditolak.
+2. **Ditolak seketika.** `REJECT` dengan `tcp-reset` mengirim RST sehingga klien langsung gagal dalam sekitar 0,002 detik. `DROP` akan membuat `nc -w 2` menunggu sampai 2 detik.
+3. **Port layanan tidak terganggu.** Rule hanya mencocokkan port 22, 23, dan 3306 dari sumber `192.238.4.51`. Port 80 dan 8080 tidak punya rule sehingga jatuh ke policy `ACCEPT` dan tetap membalas.
+4. **Klien lain tidak terganggu.** Setiap rule dibatasi dengan `-s 192.238.4.51`, jadi hanya Dummy-Plug yang terkena. Node lain melewati rule ini dan diproses policy `ACCEPT`.
+5. **Aturan Soal 15 tetap utuh.** Blok gabungan Soal 15 dan 16 mempertahankan rate-limit ping di dua baris pertama.
+6. **Bukti lewat counter.** Karena log kernel sering tidak terlihat di container, kenaikan counter pada rule `LOG` menjadi bukti bahwa pencatatan berjalan.
+
+---
+
+## 5. Kesimpulan
+
+Dengan menggabungkan aturan Soal 15 dan Soal 16 pada `/root/tokyo3.sh`, setiap koneksi TCP dari Dummy-Plug (`192.238.4.51`) ke port 22, 23, dan 3306 di Tokyo3-Core dicatat dengan prefix `SCAN-NERV: ` melalui rule `LOG`, lalu ditolak seketika melalui `REJECT --reject-with tcp-reset`. Pengujian menunjukkan koneksi ke port tertutup gagal dalam sekitar 0,002 detik dengan `Exit code: 1`, sedangkan port 80 dan 8080 tetap berhasil. Counter rule `LOG` dan `REJECT` naik sebagai bukti pencatatan dan penolakan. Seluruh persyaratan Soal 16 terpenuhi.
