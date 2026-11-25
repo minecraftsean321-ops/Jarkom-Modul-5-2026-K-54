@@ -2072,3 +2072,206 @@ Setelah dikembalikan, Spy tetap gagal karena kelompok Dummy System ditolak di lu
 ## 7. Kesimpulan
 
 Dengan menyimpan jadwal sebagai variabel (`PILOT_START`, `PILOT_STOP`, `PILOT_DAYS`, `STAF_START`, `STAF_STOP`) di awal `/root/penpen.sh` dan menerapkan rule `iptables -m time` pada chain `PENPEN_ACL`, akses ping dan TCP 80 ke Pen-Pen dapat dibatasi sesuai jadwal tanpa mengubah jam komputer. Unit-01 (Pilot) dan Lilith (Staf) hanya berhasil saat jadwal cocok, sedangkan Spy (Terduga Dummy System) selalu ditolak. Setelah pengujian, variabel dikembalikan ke nilai asli sehingga konfigurasi akhir sesuai spesifikasi soal.
+
+# Laporan Pengerjaan Soal 15 — Banjir Ping di Pusat Komando
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Tokyo3-Core, Lilith
+
+---
+
+## 1. Soal
+
+> **Banjir ping di pusat komando:** Instrumentality makin dekat, dan semua orang berebut mem-ping Tokyo3-Core. Banjir ping bisa melumpuhkannya. Batasi Tokyo3-Core agar hanya menjawab **maksimal 5 ping per detik**, dan buang kelebihannya. Aturan ini **tidak boleh mengganggu ping di bawah batas**. Aturan ini juga **tidak boleh membatasi ping yang dikirim Tokyo3-Core sendiri**. Pastikan rule benar-benar mengenai paket yang dituju. Periksa urutan rule dan jenis paketnya. Buktikan ping rapat dari Lilith, misalnya `ping -i 0.1 -c50`, sebagian hilang, dan tunjukkan counter rule pembuangan naik. Buktikan ping biasa semuanya berhasil, dengan jeda minimal 3 detik di antaranya.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Maksimal 5 ping masuk per detik | `-m limit --limit 5/second --limit-burst 5` pada rule `ACCEPT` |
+| 2 | Kelebihan dibuang | Rule `DROP` untuk ICMP `echo-request` tepat **setelah** rule `ACCEPT` |
+| 3 | Ping di bawah batas tidak terganggu | Ping yang masih dalam batas `limit` lolos di rule pertama |
+| 4 | Ping keluar dari Tokyo3-Core tidak dibatasi | Rule berada di chain `INPUT` dan hanya mencocokkan `echo-request` (type 8) |
+| 5 | Rule harus mengenai paket yang tepat | Pencocokan spesifik: `-p icmp --icmp-type echo-request` |
+
+### Alamat IP
+
+| Perangkat | IP |
+|-----------|----|
+| Tokyo3-Core | `192.238.4.106` |
+| Lilith | `192.238.4.74` |
+
+---
+
+## 2. Langkah 1 — Menambahkan Aturan Rate-Limit ke `/root/tokyo3.sh`
+
+Blok firewall Soal 15 ditambahkan secara idempoten ke bagian bawah `/root/tokyo3.sh`, tanpa menghapus listener port `80` dan `8080` dari Soal 8. Perintah `sed` menghapus blok Soal 15 lama (jika ada) agar tidak terduplikasi.
+
+```bash
+sed -i '/# === SOAL 15: FIREWALL ===/,$d' /root/tokyo3.sh
+cat << 'EOF' >> /root/tokyo3.sh
+
+# === SOAL 15: FIREWALL ===
+iptables -F
+iptables -X
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+
+# 1. Izinkan maksimal 5 ping masuk (ICMP echo-request) per detik
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 5/second --limit-burst 5 -j ACCEPT
+
+# 2. Buang kelebihan ping masuk di atas batas 5/detik
+iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+EOF
+
+bash /root/tokyo3.sh
+```
+<img width="240" height="124" alt="Screenshot 2026-11-25 at 17 26 59" src="https://github.com/user-attachments/assets/512d155a-0dbf-42ac-8102-38e0e3e0d16a" />
+
+![Menambahkan blok firewall Soal 15 di Tokyo3-Core](8fb2ead8-image.png)
+
+**Penjelasan:**
+
+| Bagian | Fungsi |
+|--------|--------|
+| `iptables -F` / `-X` | Membersihkan rule dan chain lama |
+| `-P INPUT/FORWARD/OUTPUT ACCEPT` | Policy default tetap `ACCEPT` sehingga lalu lintas lain tidak terganggu |
+| `-p icmp --icmp-type echo-request` | Hanya mencocokkan permintaan ping masuk (ICMP type 8); balasan (`echo-reply`) tidak ikut |
+| `-m limit --limit 5/second --limit-burst 5 -j ACCEPT` | Meloloskan ping selama masih dalam batas rata-rata 5 paket/detik, dengan toleransi burst awal 5 paket |
+| `-A INPUT ... -j DROP` (rule kedua) | Membuang semua `echo-request` yang tidak lolos rule pertama, yaitu kelebihan di atas 5/detik |
+
+**Urutan rule penting:** rule `ACCEPT` berbatas (`limit`) harus berada **di baris pertama**, diikuti rule `DROP` di baris kedua. Jika `DROP` berada di atas, semua ping, termasuk yang masih di bawah batas, akan dibuang.
+
+**Kenapa ping keluar dari Tokyo3-Core tidak terbatasi?**
+Ping yang dikirim Tokyo3-Core lewat chain `OUTPUT` (tidak disentuh rule), dan balasannya berupa `echo-reply` (type 0) yang masuk ke `INPUT` tidak cocok dengan rule karena rule hanya mencocokkan `echo-request` (type 8).
+
+---
+
+## 3. Langkah 2 — Pengujian dan Bukti
+
+### 3.1 Tokyo3-Core (`192.238.4.106`) — cek urutan rule dan counter awal
+
+```bash
+iptables -S
+iptables -L INPUT -n -v
+```
+
+**Hasil:**
+
+```
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -m limit --limit 5/sec -j ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -j DROP
+
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+ pkts bytes target  prot opt in  out  source     destination
+    0     0 ACCEPT  icmp --  *   *    0.0.0.0/0  0.0.0.0/0   icmptype 8 limit: avg 5/sec burst 5
+    0     0 DROP    icmp --  *   *    0.0.0.0/0  0.0.0.0/0   icmptype 8
+```
+<img width="479" height="196" alt="Screenshot 2026-11-25 at 17 28 14" src="https://github.com/user-attachments/assets/4321a724-6396-4524-80fb-284fbffe2fab" />
+
+![Tokyo3-Core: urutan rule dan counter awal](ae5198af-image.png)
+
+**Analisis:** Rule `limit: avg 5/sec burst 5` berada di baris pertama, diikuti rule `DROP icmptype 8` di baris kedua. Kedua counter masih `0`, menandakan belum ada paket sebelum pengujian.
+
+### 3.2 Lilith (`192.238.4.74`) — banjir ping rapat (0,1 detik, 50 paket)
+
+```bash
+ping -i 0.1 -c 50 192.238.4.106
+```
+
+**Hasil:**
+
+```
+--- 192.238.4.106 ping statistics ---
+50 packets transmitted, 30 received, 40% packet loss, time 5641ms
+rtt min/avg/max/mdev = 0.619/1.071/1.980/0.307 ms
+```
+
+Balasan terlihat berurutan pada `icmp_seq=1` sampai `9`, lalu mulai selang-seling (`11, 13, 15, ...`) karena kelebihan paket dibuang.
+<img width="482" height="472" alt="Screenshot 2026-11-25 at 17 28 57" src="https://github.com/user-attachments/assets/16aac166-8639-4ee2-b1e4-d85269dd9772" />
+
+![Lilith: ping rapat 50 paket, 40% packet loss](59645109-image.png)
+
+### 3.3 Tokyo3-Core — kenaikan counter rule pembuangan
+
+```bash
+iptables -L INPUT -n -v
+```
+
+**Hasil:**
+
+```
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+ pkts bytes target  prot opt in  out  source     destination
+   30  2520 ACCEPT  icmp --  *   *    0.0.0.0/0  0.0.0.0/0   icmptype 8 limit: avg 5/sec burst 5
+   20  1680 DROP    icmp --  *   *    0.0.0.0/0  0.0.0.0/0   icmptype 8
+```
+<img width="480" height="114" alt="Screenshot 2026-11-25 at 17 30 51" src="https://github.com/user-attachments/assets/3215e885-146d-4a68-af3d-87344e0a7e2f" />
+
+![Tokyo3-Core: counter ACCEPT 30 paket dan DROP 20 paket](c2776680-image.png)
+
+**Analisis:**
+- Rule `ACCEPT` mencatat **30 paket (2520 byte)** dan rule `DROP` mencatat **20 paket (1680 byte)**.
+- 30 + 20 = **50 paket**, sama dengan jumlah paket yang dikirim Lilith.
+- 30 paket yang diterima cocok dengan hasil ping Lilith (`30 received`), sedangkan 20 paket sisanya dibuang. Ini membuktikan kelebihan ping benar-benar ditangkap rule `DROP`.
+- Tiap paket ping berukuran 84 byte: 30 × 84 = 2520 byte dan 20 × 84 = 1680 byte.
+
+### 3.4 Lilith — ping biasa dengan jeda minimal 3 detik
+
+```bash
+ping -i 3 -c 5 192.238.4.106
+```
+
+**Hasil:**
+
+```
+5 packets transmitted, 5 received, 0% packet loss, time 13412ms
+```
+<img width="387" height="126" alt="Screenshot 2026-11-25 at 17 31 48" src="https://github.com/user-attachments/assets/2f8273c2-bd82-4e08-9254-a7af90aff301" />
+
+![Lilith: ping biasa jeda 3 detik, 0% packet loss](a3017bbd-image.png)
+
+### 3.5 Tokyo3-Core — ping keluar tidak ikut terbatasi
+
+```bash
+ping -i 0.1 -c 15 192.238.4.74
+```
+
+**Hasil:**
+
+```
+15 packets transmitted, 15 received, 0% packet loss, time 1579ms
+rtt min/avg/max/mdev = 0.625/1.116/2.402/0.465 ms
+```
+<img width="479" height="278" alt="Screenshot 2026-11-25 at 17 32 17" src="https://github.com/user-attachments/assets/7d6b01e4-770a-490e-8499-0c1300053e01" />
+
+![Tokyo3-Core: ping keluar rapat ke Lilith, 0% packet loss](b10b4cd6-image.png)
+
+---
+
+## 4. Hasil dan Pembahasan
+
+| Pengujian | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
+|-----------|-----------------------|--------------|:-----------:|
+| Lilith → Tokyo3-Core `ping -i 0.1 -c 50` (10 ping/detik) | Sebagian hilang | 30 diterima, 20 hilang (40% loss) | ✅ |
+| Counter rule `DROP` | Naik | 20 paket / 1680 byte | ✅ |
+| Lilith → Tokyo3-Core `ping -i 3 -c 5` (di bawah batas) | Semua berhasil | 5 diterima (0% loss) | ✅ |
+| Tokyo3-Core → Lilith `ping -i 0.1 -c 15` (ping keluar) | Tidak terbatasi | 15 diterima (0% loss) | ✅ |
+
+**Pembahasan:**
+
+1. **Pembatasan 5 ping per detik.** Rule `-m limit --limit 5/second --limit-burst 5` bekerja seperti *token bucket*: 5 paket pertama lolos sebagai burst, lalu laju rata-rata dibatasi 5 paket/detik. Dengan laju kirim 10 ping/detik, sekitar setengah paket lolos, sesuai hasil 30 dari 50 paket (40% loss).
+2. **Pola balasan.** Balasan awal berurutan (`seq 1–9`) karena masih ada token burst dan pengisian token, lalu berubah selang-seling saat laju kirim melebihi laju pengisian.
+3. **Kelebihan dibuang.** Counter `DROP` naik menjadi 20 paket dan jumlah `ACCEPT` + `DROP` (30 + 20) sama dengan 50 paket yang dikirim, jadi rule mengenai paket yang tepat.
+4. **Ping di bawah batas tidak terganggu.** Dengan jeda 3 detik (sekitar 0,33 ping/detik, jauh di bawah 5/detik) semua paket lolos rule `ACCEPT` pertama sehingga 0% packet loss.
+5. **Ping keluar tidak terbatasi.** Ping dari Tokyo3-Core melewati chain `OUTPUT` dan balasannya (`echo-reply`) bukan type 8, sehingga tidak cocok dengan rule. Hasilnya 15 dari 15 paket berhasil walaupun dikirim rapat.
+
+---
+
+## 5. Kesimpulan
+
+Dengan menambahkan rule `iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 5/second --limit-burst 5 -j ACCEPT` diikuti rule `DROP` untuk `echo-request` pada `/root/tokyo3.sh`, Tokyo3-Core hanya menjawab maksimal 5 ping per detik dan membuang kelebihannya. Ping rapat dari Lilith sebagian hilang (40% loss) dengan counter `DROP` yang naik, ping biasa dengan jeda 3 detik semuanya berhasil, dan ping yang dikirim Tokyo3-Core sendiri tidak terbatasi. Seluruh persyaratan Soal 15 terpenuhi.
