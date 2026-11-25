@@ -892,3 +892,288 @@ Chain INPUT (policy ACCEPT 6 packets, 504 bytes)
 ## 5. Kesimpulan
 
 Dengan menambahkan satu rule `iptables -A INPUT -p icmp --icmp-type echo-request -j DROP` pada `/root/casper.sh`, Casper tidak dapat di-ping oleh perangkat mana pun (baik satu switch maupun lintas subnet), tetap dapat mem-ping ke luar, dan layanan TCP 5000 tetap berjalan. Seluruh persyaratan Soal 11 terpenuhi.
+
+# Laporan Pengerjaan Soal 12 — Teknisi yang Kelewat Semangat
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Magi-Casper, Unit-00, Lilith
+
+---
+
+## 1. Soal
+
+> **Teknisi yang kelewat semangat:** seorang teknisi menjalankan script hardening di Casper lalu pulang tanpa mengecek. Paginya Casper tidak bisa ping `8.8.8.8` dan tidak bisa `apt-get update`. Unit-00 juga tidak bisa menyambung ke TCP 5000 Casper. Ping ke Casper tetap ditolak, dan itu memang benar. Jalankan `break_fw.sh` di **Magi-Casper**, lalu perbaiki **tanpa membatalkan tujuan hardening**. Casper tetap menolak semua lalu lintas masuk yang tidak diizinkan, dan **policy INPUT tetap DROP**. Buktikan `nc` dari Unit-00 ke Casper port 5000 berhasil dan `apt-get update` di Casper berhasil.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Casper bisa ping `8.8.8.8` dan `apt-get update` | Izinkan paket balasan (`ESTABLISHED,RELATED`) dan hapus blokir DNS keluar |
+| 2 | Unit-00 bisa `nc` ke Casper TCP 5000 | Tambah rule `ACCEPT` untuk `--dport 5000` |
+| 3 | Ping ke Casper tetap ditolak | Pertahankan DROP pada ICMP `echo-request` |
+| 4 | Policy `INPUT` tetap `DROP` | Tidak mengubah policy menjadi ACCEPT |
+
+### Alamat IP
+
+| Perangkat | IP | Keterangan |
+|-----------|----|------------|
+| Magi-Casper | `192.238.4.58` | Perangkat yang dirusak firewall |
+| Unit-00 | `192.238.4.68` | Klien uji TCP 5000 |
+| Lilith | `192.238.4.74` | Klien uji ping ke Casper |
+
+---
+
+## 2. Gejala Kerusakan (Sebelum Diperbaiki)
+
+Setelah `break_fw.sh` dijalankan di Magi-Casper, gejala berikut diambil sebagai bukti.
+
+> **Catatan:** Tambahkan screenshot proses pengecekan `/tmp` dan pengunduhan/eksekusi `break_fw.sh` di sini jika diperlukan.
+
+### 2.1 Magi-Casper — ping keluar dan `apt-get update` gagal
+
+```bash
+ping -c 3 -W 2 8.8.8.8
+apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false
+```
+
+**Hasil:**
+
+```
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 0 received, 100% packet loss, time 2315ms
+
+Err:1 http://deb.debian.org/debian trixie InRelease
+  Temporary failure resolving 'deb.debian.org'
+Err:2 http://deb.debian.org/debian trixie-updates InRelease
+  Temporary failure resolving 'deb.debian.org'
+Err:3 http://deb.debian.org/debian-security trixie-security InRelease
+  Temporary failure resolving 'deb.debian.org'
+W: Some index files failed to download. They have been ignored, or old ones used instead.
+```
+<img width="364" height="303" alt="Screenshot 2026-11-25 at 08 32 30" src="https://github.com/user-attachments/assets/04dad4bf-f14e-4c49-bee8-feee51f390c3" />
+
+![Casper: ping 8.8.8.8 dan apt-get update gagal](051f6ca1-image.png)
+
+### 2.2 Unit-00 (`192.238.4.68`) — koneksi ke TCP 5000 Casper gagal
+
+```bash
+nc -v -w 3 192.238.4.58 5000
+```
+
+**Hasil:**
+
+```
+nc: connect to 192.238.4.58 port 5000 (tcp) timed out: Operation in progress
+```
+<img width="364" height="187" alt="Screenshot 2026-11-25 at 08 33 26" src="https://github.com/user-attachments/assets/73ce4ace-f8fd-4514-b5e4-111521b5df3a" />
+
+![Unit-00: nc ke Casper port 5000 timed out](7fee2332-image.png)
+
+### 2.3 Lilith (`192.238.4.74`) — ping masuk ke Casper tetap ditolak
+
+```bash
+ping -c 3 -W 1 192.238.4.58
+```
+
+**Hasil:**
+
+```
+3 packets transmitted, 0 received, 100% packet loss, time 2310ms
+```
+<img width="365" height="231" alt="Screenshot 2026-11-25 at 08 34 08" src="https://github.com/user-attachments/assets/7b8827d9-eafd-45dc-bc41-741170b64772" />
+
+![Lilith: ping ke Casper 100% packet loss (sebelum perbaikan)](9874c865-image.png)
+
+Hasil ini sudah sesuai dengan tujuan hardening: ping ke Casper memang harus ditolak.
+
+---
+
+## 3. Diagnosis di Magi-Casper
+
+```bash
+iptables -S
+iptables -L -n -v
+iptables -t nat -S
+ss -tlnp
+cat /etc/resolv.conf
+```
+
+**Hasil (ringkas):**
+
+```
+-P INPUT DROP
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A INPUT -i lo -j ACCEPT
+-A INPUT -p icmp -j DROP
+-A OUTPUT -p udp -m udp --dport 53 -j DROP
+
+Chain INPUT (policy DROP 3 packets, 180 bytes)
+   6   328 ACCEPT  all  --  lo  *   0.0.0.0/0  0.0.0.0/0
+   6   504 DROP    icmp --  *   *   0.0.0.0/0  0.0.0.0/0
+
+Chain OUTPUT (policy ACCEPT 10 packets, 632 bytes)
+  50  3286 DROP    udp  --  *   *   0.0.0.0/0  0.0.0.0/0   udp dpt:53
+
+-P PREROUTING ACCEPT   (tabel nat: semua ACCEPT)
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+
+LISTEN 0 1  0.0.0.0:5000  0.0.0.0:*  users:(("nc.traditional",pid=452,fd=3))
+nameserver 8.8.8.8
+```
+<img width="366" height="361" alt="Screenshot 2026-11-25 at 08 37 32" src="https://github.com/user-attachments/assets/ebca340c-ce30-4bcd-b0b5-18a1a90d8f34" />
+
+![Output diagnosis iptables, ss, dan resolv.conf di Magi-Casper](19f2e98f-image.png)
+
+---
+
+## 4. Analisis Penyebab Kerusakan
+
+| No | Penyebab | Dampak |
+|----|----------|--------|
+| 1 | Policy `INPUT` diubah menjadi `DROP` **tanpa** rule `ESTABLISHED,RELATED` | Paket ping dan permintaan koneksi repositori berhasil keluar lewat `OUTPUT`, tetapi semua **paket balasan** (ICMP echo-reply dan data HTTP/TCP) yang masuk kembali langsung dibuang oleh `INPUT DROP` |
+| 2 | Rule `-A OUTPUT -p udp --dport 53 -j DROP` | Seluruh kueri DNS ke `8.8.8.8` dibuang (counter menunjukkan **50 paket** ter-DROP). Akibatnya saat `apt-get update`, Casper gagal me-resolve `deb.debian.org` (*Temporary failure resolving*) |
+| 3 | Tidak ada rule `ACCEPT` untuk TCP port 5000 | Koneksi TCP dari Unit-00 ke port 5000 dibuang diam-diam sehingga mengalami *timed out*, meskipun listener `nc.traditional` tetap `LISTEN` |
+| 4 | Rule `-A INPUT -p icmp -j DROP` memblokir **semua** tipe ICMP | Tidak membedakan `echo-request` masuk dan `echo-reply` keluar, sehingga balasan ping Casper ke `8.8.8.8` ikut terbuang |
+
+---
+
+## 5. Perbaikan Permanen di Magi-Casper
+
+Blok firewall pada `/root/casper.sh` diganti dengan konfigurasi hardening yang benar: policy `INPUT` tetap `DROP`, ping masuk tetap ditolak, tetapi paket balasan dan TCP 5000 diizinkan. Perintah `sed` menghapus blok Soal 11 dan Soal 12 lama agar tidak terduplikasi, sedangkan `iptables -F` membersihkan rule rusak (termasuk blokir DNS di `OUTPUT`).
+
+```bash
+sed -i '/# === SOAL 11: FIREWALL ===/,$d' /root/casper.sh
+sed -i '/# === SOAL 12: FIREWALL ===/,$d' /root/casper.sh
+
+cat << 'EOF' >> /root/casper.sh
+
+# === SOAL 12: FIREWALL ===
+iptables -F
+iptables -X
+iptables -P INPUT DROP
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+
+# 1. Izinkan interface loopback
+iptables -A INPUT -i lo -j ACCEPT
+
+# 2. Tolak ping masuk (ICMP echo-request) agar Casper tetap tidak terdeteksi
+iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+
+# 3. Izinkan paket balasan dari koneksi keluar (ping keluar, DNS, apt-get update)
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# 4. Izinkan koneksi masuk ke layanan TCP 5000 Magi-Casper
+iptables -A INPUT -p tcp --dport 5000 -j ACCEPT
+EOF
+
+bash /root/casper.sh
+```
+<img width="363" height="243" alt="Screenshot 2026-11-25 at 08 42 06" src="https://github.com/user-attachments/assets/fd9b5a7b-a794-4738-adab-077adc6ee88e" />
+
+![Menjalankan perbaikan permanen di Magi-Casper](d628fa42-image.png)
+
+**Penjelasan rule:**
+
+| Rule | Fungsi |
+|------|--------|
+| `-P INPUT DROP` | Policy default tetap menolak semua lalu lintas masuk yang tidak diizinkan (tujuan hardening terjaga) |
+| `-i lo -j ACCEPT` | Mengizinkan trafik loopback internal |
+| `-p icmp --icmp-type echo-request -j DROP` | Ping masuk ke Casper tetap ditolak; hanya `echo-request` yang diblokir agar `echo-reply` tidak ikut terbuang |
+| `-m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT` | Mengizinkan balasan dari koneksi yang dimulai Casper (ping keluar, DNS, `apt-get`) |
+| `-p tcp --dport 5000 -j ACCEPT` | Mengizinkan koneksi masuk ke layanan TCP 5000 |
+
+> **Catatan:** Blokir DNS keluar (`-A OUTPUT -p udp --dport 53 -j DROP`) hilang karena `iptables -F` mengosongkan seluruh rule, dan policy `OUTPUT` tetap `ACCEPT`.
+
+---
+
+## 6. Verifikasi dan Bukti Perbaikan
+
+### 6.1 Magi-Casper — rule firewall, ping `8.8.8.8`, dan `apt-get update`
+
+```bash
+iptables -S
+ping -c 3 8.8.8.8
+apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false
+```
+
+**Hasil:**
+
+```
+-P INPUT DROP
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A INPUT -i lo -j ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -j DROP
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -p tcp -m tcp --dport 5000 -j ACCEPT
+
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=110 time=20.4 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=110 time=20.4 ms
+64 bytes from 8.8.8.8: icmp_seq=3 ttl=110 time=20.0 ms
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2219ms
+
+Hit:1 http://deb.debian.org/debian trixie InRelease
+Hit:2 http://deb.debian.org/debian trixie-updates InRelease
+Hit:3 http://deb.debian.org/debian-security trixie-security InRelease
+Reading package lists... Done
+```
+<img width="364" height="200" alt="Screenshot 2026-11-25 at 08 42 23" src="https://github.com/user-attachments/assets/ce7618bd-3104-481d-991b-c8e6710974fc" />
+
+![Casper: iptables -S, ping 8.8.8.8, dan apt-get update berhasil](7584a08d-image.png)
+
+### 6.2 Unit-00 (`192.238.4.68`) — koneksi ke Casper TCP 5000
+
+```bash
+echo "tes koneksi dari Unit-00" | nc -v -w 2 192.238.4.58 5000
+```
+
+**Hasil:**
+
+```
+Connection to 192.238.4.58 5000 port [tcp/*] succeeded!
+```
+<img width="362" height="28" alt="Screenshot 2026-11-25 at 08 42 45" src="https://github.com/user-attachments/assets/a0e9ef28-ad66-4dc4-8bf6-5fa1cdec8446" />
+
+![Unit-00: nc ke Casper port 5000 berhasil](30554f8d-image.png)
+
+### 6.3 Lilith (`192.238.4.74`) — ping ke Casper tetap ditolak
+
+```bash
+ping -c 3 -W 1 192.238.4.58
+```
+
+**Hasil:**
+
+```
+3 packets transmitted, 0 received, 100% packet loss, time 2268ms
+```
+<img width="363" height="49" alt="Screenshot 2026-11-25 at 08 42 56" src="https://github.com/user-attachments/assets/8524cef8-82aa-4f5a-bd38-1fb206613e29" />
+
+![Lilith: ping ke Casper tetap 100% packet loss (setelah perbaikan)](60de5d15-image.png)
+
+---
+
+## 7. Perbandingan Sebelum dan Sesudah
+
+| Pengujian | Sebelum | Sesudah | Sesuai Soal |
+|-----------|---------|---------|:-----------:|
+| Casper `ping 8.8.8.8` | 100% packet loss | 0% packet loss (TTL 110) | ✅ |
+| Casper `apt-get update` | *Temporary failure resolving* | `Hit` / `Reading package lists... Done` | ✅ |
+| Unit-00 `nc` ke Casper TCP 5000 | *timed out* | *succeeded!* | ✅ |
+| Lilith ping ke Casper | 100% packet loss | 100% packet loss (tetap ditolak) | ✅ |
+| Policy `INPUT` | `DROP` | `DROP` (tetap) | ✅ |
+
+---
+
+## 8. Kesimpulan
+
+Kerusakan disebabkan oleh tiga kesalahan konfigurasi: tidak adanya rule `ESTABLISHED,RELATED` pada policy `INPUT DROP`, adanya blokir DNS keluar (UDP port 53), dan tidak adanya izin untuk TCP 5000. Rule ICMP yang terlalu luas juga ikut memblokir balasan ping. Setelah blok firewall diganti dengan konfigurasi yang benar, Casper kembali bisa ping keluar dan `apt-get update`, Unit-00 dapat terhubung ke TCP 5000, dan ping masuk ke Casper tetap ditolak. Policy `INPUT` tetap `DROP`, sehingga tujuan hardening tidak dibatalkan.
