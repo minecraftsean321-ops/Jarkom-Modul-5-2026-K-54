@@ -3093,7 +3093,7 @@ nc -w 2 8.8.8.8 53 </dev/null; echo "Exit code Seele (8.8.8.8:53): $?"
 nc -w 2 192.238.4.82 9000 </dev/null; echo "Exit code Zeruel (9000): $?"
 nc -w 2 192.238.4.74 9000 </dev/null; echo "Exit code Lilith (9000): $?"
 ```
-Hasil yang diharapkan semua paket yang di ping gagal
+Hasil yang diharapkan semua paket yang di ping gagal agar bisa membuktikan bahwa aturan isolasi telah berhasil. 
 
 <img width="1059" height="489" alt="image" src="https://github.com/user-attachments/assets/562476c1-7f76-48de-8fd4-84c37fe5fd41" />
 
@@ -3105,6 +3105,8 @@ ping -c 3 192.238.4.74
 nc -w 2 8.8.8.8 53 </dev/null; echo "Exit code Seele (8.8.8.8:53): $?"
 nc -w 2 192.238.4.74 9000 </dev/null; echo "Exit code Lilith (9000): $?"
 ```
+
+Semua perintah ping harus berhasil untuk membuktikan aturan isolasi untuk Armisael berhasil presisi dan tidak berpengaruh ke sesama subnet.
 
 <img width="943" height="494" alt="image" src="https://github.com/user-attachments/assets/6de792ad-d920-4deb-972d-25ccd7e690da" />
 
