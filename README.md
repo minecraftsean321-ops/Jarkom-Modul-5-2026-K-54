@@ -3000,6 +3000,116 @@ Chain FORWARD (policy ACCEPT 2 packets, 168 bytes)
 
 Dengan tiga rule di chain `FORWARD` pada Shigeru, yaitu `ESTABLISHED,RELATED → ACCEPT`, `ACCEPT` ICMP `echo-request` dari `192.238.4.56/29` via `eth0`, dan `DROP` semua paket masuk via `eth0`, zona yang dijaga Shigeru hanya dapat diakses sesuai aturan. Node di dalam zona dapat memulai koneksi ke mana saja dan balasannya tetap sampai, node di luar zona tidak dapat memulai koneksi ke dalam zona, dan ping dari subnet Terminal dikecualikan. Penolakan berbasis interface masuk (`-i eth0`) membuat subnet luar baru otomatis terblokir tanpa perlu ditulis satu per satu. Ping Casper ke Zeruel berhasil, sedangkan ping Lilith ke Zeruel gagal. Seluruh persyaratan Soal 18 terpenuhi.
 
+# Laporan Pengerjaan Soal 19 — Hukuman untuk Sang Pengkhianat
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Switch-Monolith, Shigeru, Armisael, Zeruel, Lilith, Seele (`8.8.8.8`)
+
+---
+
+## 1. Soal
+
+> **Hukuman untuk sang pengkhianat:** hitung mundur tinggal beberapa menit. **Armisael tidak boleh lagi bicara dengan siapa pun**, tapi **Zeruel** di sebelahnya tidak boleh ikut terhukum. Blokir **semua lalu lintas masuk dan keluar** Armisael, termasuk ke gateway dan tetangga satu switch. **Isolasi tidak boleh dikerjakan di dalam Armisael**, karena pengkhianat tidak bisa dipercaya. Untuk uji `nc`, nyalakan listener TCP 9000 di Armisael, Zeruel, dan Lilith. Ke Seele pakai TCP 53. Buktikan ping dan `nc` dari Armisael ke Seele, Zeruel, dan Lilith **gagal**. Buktikan ping dan `nc` dari Zeruel ke Seele dan Lilith **berhasil**.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Isolasi tidak boleh dikerjakan di dalam Armisael | Konfigurasi dilakukan di luar Armisael, yaitu pada **Switch-Monolith** (Layer 2) dan router **Shigeru** (Layer 3) |
+| 2 | Blokir lalu lintas ke tetangga satu switch (`Zeruel`) | Isolasi VLAN pada port switch `Switch-Monolith` yang terhubung ke Armisael (`Port 7` / `e6` dipindah ke `VLAN 99`) |
+| 3 | Blokir seluruh lalu lintas masuk & keluar di level router/gateway (`Shigeru`) | Rule `DROP` di baris teratas chain `INPUT` dan `FORWARD` pada `Shigeru` untuk sumber maupun tujuan `192.238.4.83/32` |
+| 4 | Zeruel di sebelahnya tidak boleh ikut terhukum | Port `Zeruel` dan uplink `Shigeru` tetap di `VLAN 1`, serta rule `Shigeru` hanya menargetkan IP `192.238.4.83/32` |
+
+### Alamat IP
+
+| Perangkat | IP | Peran pada Soal 19 |
+|-----------|----|--------------------|
+| Armisael | `192.238.4.83` | Target yang diisolasi total (listener TCP `9000`) |
+| Zeruel | `192.238.4.82` | Tetangga satu switch di `Switch-Monolith` — harus tetap normal (listener TCP `9000`) |
+| Shigeru (`eth1`) | `192.238.4.81` | Gateway subnet `192.238.4.80/29` dan router penjaga zona |
+| Lilith | `192.238.4.74` | Node di subnet `Switch-Dogma` — target uji lintas subnet (listener TCP `9000`) |
+| Seele | `8.8.8.8` | Tujuan eksternal / internet — target uji layanan TCP `53` |
+
+---
+
+## 2. Langkah Pengerjaan (Tanpa Menyentuh Konfigurasi Armisael)
+
+### 2.1 Isolasi Layer 2 di `Switch-Monolith` (Memutus Jalur ke Tetangga Satu Switch & Gateway)
+
+Karena `Armisael` (`192.238.4.83/29`) dan `Zeruel` (`192.238.4.82/29`) berada dalam satu segmen jaringan dan satu switch (`Switch-Monolith`), komunikasi langsung antar-keduanya berjalan pada **Layer 2 (switching)** tanpa melewati router `Shigeru`. Oleh karena itu, pemisahan dilakukan di tingkat switch:
+
+1. Membuka menu **Configure** pada node **`Switch-Monolith`** di GNS3.
+2. Mengidentifikasi port yang terhubung ke `Armisael` yaitu interface **`e6`** (**Port 7**).
+3. Mengubah konfigurasi **Port 7** dari `VLAN 1` menjadi **`VLAN 99`** (`access`), sedangkan port menuju `Zeruel` dan uplink `Shigeru` (`eth1`) dibiarkan tetap pada **`VLAN 1`**, lalu menekan **Apply** dan **OK**.
+
+> Tambahkan screenshot jendela **Switch-Monolith configuration** (Port 7 pada VLAN 99) di sini.
+
+### 2.2 Isolasi Layer 3 di Router `Shigeru` (`/root/shigeru.sh`)
+
+Untuk memastikan tidak ada paket dari maupun menuju `Armisael` (`192.238.4.83`) yang diproses atau diteruskan oleh router `Shigeru`, ditambahkan 4 aturan `DROP` di baris paling atas chain `INPUT` dan `FORWARD` pada `/root/shigeru.sh` (sebelum aturan `ESTABLISHED,RELATED` dan aturan Soal 18):
+
+```bash
+# Bagian isolasi Soal 19 pada /root/shigeru.sh
+iptables -I INPUT   1 -s 192.238.4.83/32 -j DROP
+iptables -I INPUT   1 -d 192.238.4.83/32 -j DROP
+iptables -I FORWARD 1 -s 192.238.4.83/32 -j DROP
+iptables -I FORWARD 1 -d 192.238.4.83/32 -j DROP
+```
+
+Verifikasi urutan aturan di `Shigeru`:
+
+```bash
+bash /root/shigeru.sh && iptables -S
+```
+
+<img width="1024" height="332" alt="image" src="https://github.com/user-attachments/assets/9d045ad9-894e-4fa3-83f5-6aa83c383b89" />
+
+### 2.3 Menyalakan Listener TCP 9000 di Armisael, Zeruel dan Lilith  
+Pada masing-masing node (Armisael, Zeruel, dan Lilith) dijalankan listener nc di background pada port TCP 9000 (sedangkan Seele 8.8.8.8 sudah menyediakan layanan TCP 53 secara bawaan):
+
+```bash
+nohup sh -c 'while true; do echo "Halo dari $(hostname)" | nc -l -p 9000 >/dev/null 2>&1; done' >/dev/null 2>&1 &
+```
+
+- Armisael  
+  <img width="1059" height="84" alt="image" src="https://github.com/user-attachments/assets/5df9fcc9-a292-4d2b-8df4-5da994199fec" />
+
+- Zeruel  
+  <img width="1062" height="84" alt="image" src="https://github.com/user-attachments/assets/ba18b413-6ba4-473b-bd57-27f404f63d9d" />
+
+- Lilith
+  <img width="1062" height="84" alt="image" src="https://github.com/user-attachments/assets/274f5d51-59b1-4a74-adec-399f53bd9fd5" />
+
+
+## Tahap 3: Pengujian 
+
+### 3.1 Uji dari Armisael 
+
+```
+ping -c 3 -W 1 8.8.8.8
+ping -c 3 -W 1 192.238.4.82
+ping -c 3 -W 1 192.238.4.74
+nc -w 2 8.8.8.8 53 </dev/null; echo "Exit code Seele (8.8.8.8:53): $?"
+nc -w 2 192.238.4.82 9000 </dev/null; echo "Exit code Zeruel (9000): $?"
+nc -w 2 192.238.4.74 9000 </dev/null; echo "Exit code Lilith (9000): $?"
+```
+Hasil yang diharapkan semua paket yang di ping gagal
+
+<img width="1059" height="489" alt="image" src="https://github.com/user-attachments/assets/562476c1-7f76-48de-8fd4-84c37fe5fd41" />
+
+### 3.2 Uji dari Zeruel 
+
+```
+ping -c 3 8.8.8.8
+ping -c 3 192.238.4.74
+nc -w 2 8.8.8.8 53 </dev/null; echo "Exit code Seele (8.8.8.8:53): $?"
+nc -w 2 192.238.4.74 9000 </dev/null; echo "Exit code Lilith (9000): $?"
+```
+
+<img width="943" height="494" alt="image" src="https://github.com/user-attachments/assets/6de792ad-d920-4deb-972d-25ccd7e690da" />
+
+
+
 # Laporan Pengerjaan Soal 20 — Uji Kebakaran Geofront
 
 **Modul:** Modul 5 2026
