@@ -2999,3 +2999,308 @@ Chain FORWARD (policy ACCEPT 2 packets, 168 bytes)
 ## 5. Kesimpulan
 
 Dengan tiga rule di chain `FORWARD` pada Shigeru, yaitu `ESTABLISHED,RELATED → ACCEPT`, `ACCEPT` ICMP `echo-request` dari `192.238.4.56/29` via `eth0`, dan `DROP` semua paket masuk via `eth0`, zona yang dijaga Shigeru hanya dapat diakses sesuai aturan. Node di dalam zona dapat memulai koneksi ke mana saja dan balasannya tetap sampai, node di luar zona tidak dapat memulai koneksi ke dalam zona, dan ping dari subnet Terminal dikecualikan. Penolakan berbasis interface masuk (`-i eth0`) membuat subnet luar baru otomatis terblokir tanpa perlu ditulis satu per satu. Ping Casper ke Zeruel berhasil, sedangkan ping Lilith ke Zeruel gagal. Seluruh persyaratan Soal 18 terpenuhi.
+
+# Laporan Pengerjaan Soal 20 — Uji Kebakaran Geofront
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3, project `K-54-MODUL-5`) — Tokyo3-Core, Pen-Pen, Fuyutsuki, Shigeru, Zeruel
+
+---
+
+## 1. Soal
+
+> **Uji kebakaran Geofront:** NERV harus bisa dibangun ulang dengan cepat. Pilih **tiga node** sendiri, minimal **satu router**. Di tiap node, simpan dulu rule dengan `iptables-save` ke `/root/<nama>.rules`. Lalu hapus semua rule iptables **termasuk tabel nat**, dan hapus rute yang kamu tambahkan sendiri. Pulihkan rule dengan `iptables-restore`, dan pulihkan rute dengan `/root/<nama>.sh`. Lakukan pemulihan itu **dua kali berturut-turut**. Hasilnya harus sama: rule dan rute **tidak dobel**, dan node berfungsi seperti semula. Buktikan jumlah baris `iptables -S` dan `iptables -t nat -S` sama setelah pemulihan pertama dan kedua. Buktikan juga node itu berfungsi lagi.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Cara pembuktian |
+|----|-----------|-----------------|
+| 1 | Pilih tiga node, minimal satu router | Empat router dipakai: Tokyo3-Core, Pen-Pen, Fuyutsuki, Shigeru |
+| 2 | Rule dan rute dapat dipulihkan dengan cepat | Simulasi kebakaran: *reload* seluruh node di GNS3, lalu cek pemulihan otomatis |
+| 3 | Pemulihan dua kali, hasil sama dan tidak dobel | Jumlah baris `iptables -S` dan `iptables -t nat -S` setelah pemulihan ke-1 dan ke-2 (lihat bagian 5) |
+| 4 | Node berfungsi seperti semula | Ping dari Zeruel ke internet dan antar-zona |
+
+### Node yang diuji
+
+| Node | Jenis | Konfigurasi yang harus pulih |
+|------|-------|------------------------------|
+| Tokyo3-Core | Router | Rute default, rate-limit ping (Soal 15), LOG/REJECT Dummy-Plug (Soal 16) |
+| Pen-Pen | Router | Rute default, chain `PENPEN_ACL` jadwal kunjungan (Soal 14) |
+| Fuyutsuki | Router | Rute statis, NAT `DNAT` dan `MASQUERADE` (Soal 17) |
+| Shigeru | Router | Rute statis, firewall zona di chain `FORWARD` (Soal 18) |
+| Zeruel | Host | Dipakai sebagai penguji fungsionalitas jaringan |
+
+---
+
+## 2. Tahap 1 — Simulasi Kebakaran (Reload Seluruh Node di GNS3)
+
+Pada kanvas GNS3 (project `K-54-MODUL-5`), seluruh node di-*reload* untuk mensimulasikan kebakaran. Konfigurasi hanya dapat bertahan jika tersimpan secara persisten di skrip autostart masing-masing node.
+
+### 2.1 Konfirmasi *Reload All*
+
+Dialog konfirmasi `Confirm Reload All` ("Are you sure you want to reload all devices?") dijawab **Yes**.
+<img width="1470" height="956" alt="Screenshot 2026-11-26 at 12 59 04" src="https://github.com/user-attachments/assets/c703bcaf-4d07-4782-871f-75378fe48866" />
+
+
+![Dialog Confirm Reload All di GNS3](e587885d-image.png)
+
+### 2.2 Seluruh node berhasil di-reload
+
+GNS3 menampilkan notifikasi **"All nodes successfully reloaded"**. Setelah itu tab *Console* tiap router dibuka kembali agar shell menjalankan skrip pemulihan secara otomatis.
+
+<img width="1470" height="956" alt="Screenshot 2026-11-26 at 12 59 36" src="https://github.com/user-attachments/assets/0ae93be3-2586-46ba-b31d-286d6f3fbcf3" />
+
+![Notifikasi All nodes successfully reloaded](6a21a8e4-image.png)
+
+---
+
+## 3. Tahap 2 — Verifikasi Pemulihan Rute dan Firewall di Tiap Router
+
+Di setiap router dijalankan perintah berikut setelah *reload*:
+
+```bash
+ip route
+iptables -S
+iptables -t nat -S
+```
+
+### 3.1 Tokyo3-Core
+
+**Hasil:**
+
+```
+default via 192.238.4.105 dev eth0
+192.238.4.104/30 dev eth0 proto kernel scope link src 192.238.4.106
+
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -m limit --limit 5/sec -j ACCEPT
+-A INPUT -p icmp -m icmp --icmp-type 8 -j DROP
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 22   -j LOG --log-prefix "SCAN-NERV: "
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 22   -j REJECT --reject-with tcp-reset
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 23   -j LOG --log-prefix "SCAN-NERV: "
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 23   -j REJECT --reject-with tcp-reset
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 3306 -j LOG --log-prefix "SCAN-NERV: "
+-A INPUT -s 192.238.4.51/32 -p tcp -m tcp --dport 3306 -j REJECT --reject-with tcp-reset
+
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+```
+<img width="247" height="287" alt="Screenshot 2026-11-26 at 13 01 33" src="https://github.com/user-attachments/assets/11b659e6-1a93-4e58-8dbb-a7e6dfb73b15" />
+
+![Tokyo3-Core: rute dan firewall setelah reload](2be110ed-image.png)
+
+**Analisis:** Rute default dan rute jaringan lokal tersedia kembali. Aturan Soal 15 (rate-limit ping) dan Soal 16 (`LOG` + `REJECT` untuk port 22, 23, 3306 dari `192.238.4.51`) pulih lengkap, masing-masing hanya satu kali (tidak dobel). Tabel `nat` hanya berisi policy default.
+
+### 3.2 Pen-Pen
+
+**Hasil (ringkas):**
+
+```
+default via 192.238.3.193 dev eth0
+192.238.3.192/27 dev eth0 proto kernel scope link src 192.238.3.194
+
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-N PENPEN_ACL
+-A INPUT -p icmp -m icmp --icmp-type 8 -j PENPEN_ACL
+-A INPUT -p tcp -m tcp --dport 80 -j PENPEN_ACL
+-A PENPEN_ACL -s 192.238.4.66/32  -m time --timestart 13:00:00 --timestop 15:00:00 ... -j ACCEPT
+-A PENPEN_ACL -s 192.238.4.66/32  -j DROP
+ ... (192.238.4.67, 192.238.4.68, 192.238.3.130, 192.238.4.74, 192.238.4.75 dengan pola yang sama)
+-A PENPEN_ACL -s 192.238.4.50/32  -j DROP
+-A PENPEN_ACL -s 192.238.4.51/32  -j DROP
+-A PENPEN_ACL -s 192.238.4.102/32 -j DROP
+```
+<img width="248" height="318" alt="Screenshot 2026-11-26 at 13 01 40" src="https://github.com/user-attachments/assets/73b84152-7f21-49fd-a7cd-9e9f66acf47d" />
+
+![Pen-Pen: rute dan firewall setelah reload](6eb7418c-image.png)
+
+<!-- CEK: pada screenshot Pen-Pen, rule jadwal masih memakai --timestart 13:00:00 --timestop 15:00:00 (nilai uji Soal 14), bukan nilai asli soal (Pilot 01:00-09:00, Staf 10:00-16:00 UTC). Jika jadwal asli yang diinginkan, kembalikan variabel di /root/penpen.sh lalu ambil ulang screenshot. -->
+
+<!-- CEK: pada screenshot, ada baris "iptables v1.8.11 (nf_tables): Invalid rule number `route'" karena perintah yang ditempel bercampur ("iptables -t nat -Sip route"). Ini kesalahan ketik, bukan kegagalan pemulihan. Disarankan mengulang ketiga perintah satu per satu agar screenshot bersih. -->
+
+**Analisis:** Rute default menuju `192.238.3.193` dan rute `192.238.3.192/27` pulih. Chain `PENPEN_ACL` beserta dua rule pengarah (`ICMP echo-request` dan TCP 80) pulih otomatis. Setiap IP Pilot, Staf, dan Dummy hanya muncul satu kali di chain.
+
+### 3.3 Fuyutsuki
+
+**Hasil:**
+
+```
+default via 192.238.4.161 dev eth0
+192.238.3.192/27 via 192.238.4.166 dev eth2
+192.238.4.56/29 dev eth1 proto kernel scope link src 192.238.4.57
+192.238.4.72/29 via 192.238.4.170 dev eth3
+192.238.4.160/30 dev eth0 proto kernel scope link src 192.238.4.162
+192.238.4.164/30 dev eth2 proto kernel scope link src 192.238.4.165
+192.238.4.168/30 dev eth3 proto kernel scope link src 192.238.4.169
+
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-A PREROUTING  -s 192.238.4.58/32 -d 192.238.4.82/32 -p tcp -j DNAT --to-destination 192.238.3.194
+-A POSTROUTING -s 192.238.4.58/32 -d 192.238.3.194/32 -p tcp -j MASQUERADE
+```
+<img width="244" height="328" alt="Screenshot 2026-11-26 at 13 01 46" src="https://github.com/user-attachments/assets/8003ff59-a4d8-48d7-b16b-2044c84ab15a" />
+
+![Fuyutsuki: rute dan NAT setelah reload](6c2db8d3-image.png)
+
+**Analisis:** Seluruh rute statis (menuju `192.238.3.192/27` dan `192.238.4.72/29`) kembali ada. Pada tabel `nat`, `DNAT` dan `MASQUERADE` dari Soal 17 pulih masing-masing satu rule, sedangkan `iptables -S` hanya berisi policy `ACCEPT`.
+
+### 3.4 Shigeru
+
+**Hasil (ringkas):**
+
+```
+net.ipv4.ip_forward = 1
+
+default via 192.238.4.153 dev eth0
+192.238.4.80/29 dev eth1 proto kernel scope link src 192.238.4.81
+192.238.4.88/29 via 192.238.4.158 dev eth2
+192.238.4.152/30 dev eth0 proto kernel scope link src 192.238.4.154
+192.238.4.156/30 dev eth2 proto kernel scope link src 192.238.4.157
+
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A INPUT   -d 192.238.4.83/32 -j DROP
+-A INPUT   -s 192.238.4.83/32 -j DROP
+-A FORWARD -d 192.238.4.83/32 -j DROP
+-A FORWARD -s 192.238.4.83/32 -j DROP
+-A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -s 192.238.4.56/29 -i eth0 -p icmp -m icmp --icmp-type 8 -j ACCEPT
+-A FORWARD -i eth0 -j DROP
+-P PREROUTING ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+```
+<img width="245" height="329" alt="Screenshot 2026-11-26 at 13 01 52" src="https://github.com/user-attachments/assets/005414b1-bb64-425f-b745-35e62470e39d" />
+
+![Shigeru: rute dan firewall setelah reload](7c6f5501-image.png)
+
+**Analisis:** `ip_forward = 1` aktif kembali, rute statis pulih, dan firewall zona dari Soal 18 (`ESTABLISHED,RELATED` → `ACCEPT` ICMP Terminal → `DROP` `eth0`) pulih dengan urutan yang benar. Output konsol juga menunjukkan skrip autostart berjalan otomatis setelah *reload* (pengecekan paket dan konfigurasi `dhcp-relay` untuk `eth0`, `eth1`, `eth2`).
+
+---
+
+## 4. Tahap 3 — Uji Fungsionalitas Jaringan Pasca-Pemulihan (dari Zeruel)
+
+```bash
+# Uji konektivitas internet (NAT & routing)
+ping -c 3 8.8.8.8
+
+# Uji konektivitas antar-zona internal (ke Lilith)
+ping -c 3 192.238.4.74
+```
+
+**Hasil:**
+
+```
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=110 time=21.4 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=110 time=19.9 ms
+64 bytes from 8.8.8.8: icmp_seq=3 ttl=110 time=20.3 ms
+3 packets transmitted, 3 received, 0% packet loss, time 2220ms
+
+64 bytes from 192.238.4.74: icmp_seq=1 ttl=60 time=2.26 ms
+64 bytes from 192.238.4.74: icmp_seq=2 ttl=60 time=0.969 ms
+64 bytes from 192.238.4.74: icmp_seq=3 ttl=60 time=1.02 ms
+3 packets transmitted, 3 received, 0% packet loss, time 2223ms
+```
+<img width="243" height="269" alt="Screenshot 2026-11-26 at 13 03 16" src="https://github.com/user-attachments/assets/eb1ca4b6-618c-45dd-a865-179845741ba4" />
+
+![Zeruel: ping ke 8.8.8.8 dan Lilith berhasil setelah reload](0ae13bf9-image.png)
+
+**Analisis:** Ping dari Zeruel ke `8.8.8.8` dan ke Lilith berhasil 0% packet loss setelah seluruh node di-*reload*. Ini menunjukkan routing antar-router, NAT, dan firewall pada jalur Zeruel pulih dan jaringan berfungsi seperti semula.
+
+---
+
+## 5. Bukti Pemulihan Manual Dua Kali (`iptables-save` / `iptables-restore`)
+
+> **Bagian ini belum memiliki screenshot.** Soal meminta bukti simpan rule, penghapusan, dan pemulihan **dua kali berturut-turut** dengan perbandingan jumlah baris. Perintah di bawah adalah langkah yang perlu dijalankan dan di-screenshot (contoh pada node **Tokyo3-Core**, ganti `tokyo3` sesuai node lain). Hasilnya tidak saya isi karena tidak ada di foto.
+
+**5.1 Simpan rule dan catat kondisi awal**
+
+```bash
+iptables-save > /root/tokyo3.rules
+iptables -S | wc -l
+iptables -t nat -S | wc -l
+```
+
+**5.2 "Kebakaran": hapus semua rule (termasuk nat) dan rute buatan sendiri**
+
+```bash
+iptables -F
+iptables -X
+iptables -t nat -F
+iptables -t nat -X
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+# hapus rute yang kamu tambahkan sendiri (sesuaikan dengan hasil `ip route`)
+# ip route del <rute-buatan>
+iptables -S | wc -l
+iptables -t nat -S | wc -l
+```
+
+**5.3 Pemulihan ke-1**
+
+```bash
+iptables-restore < /root/tokyo3.rules
+sh /root/tokyo3.sh
+iptables -S | wc -l
+iptables -t nat -S | wc -l
+ip route
+```
+
+**5.4 Pemulihan ke-2 (berturut-turut)**
+
+```bash
+iptables-restore < /root/tokyo3.rules
+sh /root/tokyo3.sh
+iptables -S | wc -l
+iptables -t nat -S | wc -l
+ip route
+```
+
+| Node | Perintah | Jumlah baris pemulihan ke-1 | Jumlah baris pemulihan ke-2 | Sama? |
+|------|----------|:---------------------------:|:---------------------------:|:-----:|
+| (node 1) | `iptables -S` | … | … | … |
+| (node 1) | `iptables -t nat -S` | … | … | … |
+| (node 2) | `iptables -S` | … | … | … |
+| (node 2) | `iptables -t nat -S` | … | … | … |
+| (node 3) | `iptables -S` | … | … | … |
+| (node 3) | `iptables -t nat -S` | … | … | … |
+
+---
+
+## 6. Hasil dan Pembahasan
+
+| Pengujian | Hasil yang Diharapkan | Hasil Aktual | Status |
+|-----------|-----------------------|--------------|:------:|
+| *Reload* seluruh node GNS3 | Semua node berhasil di-reload | "All nodes successfully reloaded" | ✅ |
+| Rute di Tokyo3-Core, Pen-Pen, Fuyutsuki, Shigeru | Pulih otomatis | Seluruh rute default dan statis tampil kembali | ✅ |
+| Rule `iptables -S` di tiap router | Pulih lengkap, tidak dobel | Rule Soal 14–18 muncul satu kali | ✅ |
+| Tabel `nat` di Fuyutsuki | `DNAT` dan `MASQUERADE` pulih | Kedua rule hadir masing-masing satu kali | ✅ |
+| Ping Zeruel → `8.8.8.8` dan Lilith | Berhasil | 0% packet loss | ✅ |
+| `iptables-save` / `iptables-restore` dua kali dan jumlah baris | Jumlah baris sama | Belum ada screenshot (bagian 5) | ⏳ |
+
+**Pembahasan:**
+
+1. **Konfigurasi persisten.** Setelah *reload*, rute dan rule firewall muncul kembali tanpa diketik ulang karena tiap router menjalankan skrip autostartnya (`/root/<nama>.sh`) yang didaftarkan di `/etc/profile` dan `/root/.bashrc`.
+2. **Tidak dobel.** Skrip tiap node diawali `iptables -F` dan `-X` (dan reset tabel `nat` pada Fuyutsuki), sehingga setiap eksekusi dimulai dari kondisi bersih dan rule tidak menumpuk. Hasilnya, setiap rule hanya muncul satu kali pada output `iptables -S` dan `iptables -t nat -S`.
+3. **Fungsi jaringan pulih.** Ping dari Zeruel ke internet dan ke Lilith berhasil, sehingga routing, NAT, dan firewall pada jalur tersebut bekerja lagi.
+4. **Pemulihan manual.** Pemulihan dengan `iptables-restore` dua kali berturut-turut dan perbandingan jumlah baris perlu dilengkapi pada bagian 5.
+
+---
+
+## 7. Kesimpulan
+
+Setelah seluruh node GNS3 di-*reload*, rute statis dan aturan firewall pada Tokyo3-Core, Pen-Pen, Fuyutsuki, dan Shigeru pulih secara otomatis dan tidak dobel, termasuk tabel `nat` pada Fuyutsuki. Ping dari Zeruel ke `8.8.8.8` dan ke Lilith berhasil 0% packet loss, sehingga jaringan berfungsi seperti semula. Bukti pemulihan manual dua kali dengan `iptables-save` dan `iptables-restore` beserta perbandingan jumlah baris perlu dilengkapi sebelum laporan dikumpulkan.
