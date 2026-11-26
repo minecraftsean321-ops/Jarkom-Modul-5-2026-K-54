@@ -3106,7 +3106,7 @@ nc -w 2 8.8.8.8 53 </dev/null; echo "Exit code Seele (8.8.8.8:53): $?"
 nc -w 2 192.238.4.74 9000 </dev/null; echo "Exit code Lilith (9000): $?"
 ```
 
-Semua perintah ping harus berhasil untuk membuktikan aturan isolasi untuk Armisael berhasil presisi dan tidak berpengaruh ke sesama subnet.
+Semua perintah ping harus berhasil untuk membuktikan aturan isolasi Armisael berhasil presisi dan tidak berpengaruh ke sesama subnet.
 
 <img width="943" height="494" alt="image" src="https://github.com/user-attachments/assets/6de792ad-d920-4deb-972d-25ccd7e690da" />
 
