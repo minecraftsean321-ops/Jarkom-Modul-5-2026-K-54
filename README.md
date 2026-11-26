@@ -2749,3 +2749,253 @@ tcp  6 12 TIME_WAIT src=192.238.4.58 dst=192.238.4.82 sport=34700 dport=9000
 ## 6. Kesimpulan
 
 Dengan memasang rule `DNAT` (`PREROUTING`) dan `MASQUERADE` (`POSTROUTING`) pada tabel `nat` di Fuyutsuki, setiap koneksi TCP dari Magi-Casper ke Zeruel dialihkan secara diam-diam ke Pen-Pen. Casper tidak menyadarinya karena balasan tetap terlihat datang dari Zeruel, sedangkan ping tidak dialihkan. Pesan yang dikirim ke Zeruel port 9000 terbukti muncul di Pen-Pen dan tidak di Zeruel, didukung counter rule NAT dan entri tabel `conntrack` di Fuyutsuki. Seluruh persyaratan Soal 17 terpenuhi.
+
+# Laporan Pengerjaan Soal 18 — Gerbang Monolith dan Radar
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Shigeru (router/firewall), Magi-Casper, Lilith, Zeruel
+
+---
+
+## 1. Soal
+
+> **Gerbang Monolith dan Radar:** Monolith dan Radar menyimpan rahasia terbesar NERV, dan Shigeru menjaganya tanpa kompromi. Pasang aturan di **Shigeru**. Node di dalam zona boleh memulai koneksi ke mana saja, dan balasannya tetap sampai. Node di luar zona **tidak boleh memulai koneksi ke dalam zona**. Satu pengecualian: **ping dari subnet Terminal boleh masuk**. Tolak berdasarkan **arah datangnya**, yaitu semua yang datang dari sisi Shigeru yang menghadap Gendo. **Jangan menulis subnet luar satu per satu**, supaya subnet baru langsung ikut terblokir. Buktikan ping Casper ke Zeruel **berhasil**, sedangkan ping Lilith ke Zeruel **gagal**.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Node dalam zona boleh memulai koneksi ke mana saja, balasan tetap sampai | Rule `conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT` di chain `FORWARD` |
+| 2 | Node luar tidak boleh memulai koneksi ke dalam zona | `DROP` semua paket yang masuk lewat interface yang menghadap Gendo (`-i eth0`) |
+| 3 | Pengecualian: ping dari subnet Terminal boleh masuk | `ACCEPT` ICMP `echo-request` dari `192.238.4.56/29` lewat `eth0` |
+| 4 | Tolak berdasarkan arah datang, bukan daftar subnet luar | Pencocokan berdasarkan **interface masuk** (`-i eth0`), bukan alamat sumber |
+| 5 | Subnet baru langsung ikut terblokir | Karena rule berbasis interface, semua subnet baru yang datang dari arah Gendo otomatis terkena `DROP` |
+
+### Alamat IP dan interface
+
+| Perangkat / Interface | IP | Keterangan |
+|-----------------------|----|------------|
+| Shigeru `eth0` | `192.238.4.154/30` | Menghadap **Gendo** (sisi luar) |
+| Shigeru `eth1` | `192.238.4.81/29` | Sisi dalam zona (subnet Zeruel) |
+| Shigeru `eth2` | `192.238.4.157/30` | Sisi dalam zona lainnya |
+| Magi-Casper | `192.238.4.58` | Subnet Terminal (`192.238.4.56/29`) — ping diizinkan masuk |
+| Zeruel | `192.238.4.82` | Node di dalam zona (target uji) |
+| Lilith | `192.238.4.74` | Node di luar zona |
+
+---
+
+## 2. Langkah 1 — Memasang Script Firewall di Shigeru
+
+Di console **Shigeru**, interface `eth0` dipastikan menghadap Gendo (`192.238.4.154/30`), lalu script firewall Soal 18 dibuat di `/root/shigeru.sh` dan didaftarkan ke autostart agar persisten saat container restart.
+
+```bash
+# Pastikan interface menghadap Gendou adalah eth0 (192.238.4.154/30)
+ip -br a
+
+# Buat script firewall Soal 18 di /root/shigeru.sh
+cat << 'EOF' > /root/shigeru.sh
+#!/bin/bash
+[ -f /root/route.sh ] && sh /root/route.sh
+
+# Reset filter table agar idempoten
+iptables -F
+iptables -X
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+
+# 1. Izinkan balasan koneksi yang sudah ada (koneksi dari dalam zona ke luar tetap sampai)
+iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# 2. Pengecualian: izinkan ping (ICMP echo-request) dari subnet Switch-Terminal (192.238.4.56/29) masuk lewat eth0
+iptables -A FORWARD -i eth0 -s 192.238.4.56/29 -p icmp --icmp-type echo-request -j ACCEPT
+
+# 3. Tolak semua koneksi baru lainnya yang datang dari arah Gendou (interface eth0)
+iptables -A FORWARD -i eth0 -j DROP
+EOF
+
+chmod +x /root/shigeru.sh
+
+# Daftarkan ke autostart agar aktif otomatis saat container restart
+touch /root/.bashrc
+sed -i '/# === AUTOSTART SHIGERU ===/,$d' /etc/profile /root/.bashrc
+printf '\n# === AUTOSTART SHIGERU ===\n[ -f /root/shigeru.sh ] && bash /root/shigeru.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null
+
+# Jalankan script
+bash /root/shigeru.sh
+```
+
+<!-- CEK: pada screenshot, baris printf/tee autostart terpotong di layar. Samakan dengan perintah aslimu bila berbeda. -->
+<img width="362" height="243" alt="Screenshot 2026-11-26 at 10 05 37" src="https://github.com/user-attachments/assets/418728f4-b3f9-4dfe-a1b7-48dcda3bad2c" />
+
+![Perintah pemasangan script firewall di Shigeru](f35a4e53-image.png)
+
+**Hasil di terminal (`ip -br a` dan `ip_forward`):**
+
+```
+lo     UNKNOWN  127.0.0.1/8 ::1/128
+eth0   UNKNOWN  192.238.4.154/30
+eth1   UNKNOWN  192.238.4.81/29
+eth2   UNKNOWN  192.238.4.157/30
+eth3   UNKNOWN  fe80::42:11ff:fe4c:ba03/64
+net.ipv4.ip_forward = 1
+```
+<img width="362" height="243" alt="Screenshot 2026-11-26 at 10 05 37" src="https://github.com/user-attachments/assets/418728f4-b3f9-4dfe-a1b7-48dcda3bad2c" />
+
+![Hasil menjalankan script di Shigeru](ce51cf39-image.png)
+
+**Penjelasan:**
+
+| Bagian | Fungsi |
+|--------|--------|
+| `ip -br a` | Memastikan `eth0` (`192.238.4.154/30`) adalah interface yang menghadap Gendo |
+| `[ -f /root/route.sh ] && sh /root/route.sh` | Mempertahankan konfigurasi routing sebelumnya (termasuk `ip_forward = 1`) |
+| `iptables -F` / `-X` dan policy `ACCEPT` | Membersihkan rule lama agar skrip idempoten |
+| Rule 1: `ESTABLISHED,RELATED -j ACCEPT` | Balasan dari koneksi yang dimulai node dalam zona tetap sampai; juga membuat koneksi keluar dari dalam zona berjalan normal |
+| Rule 2: `-i eth0 -s 192.238.4.56/29 -p icmp --icmp-type echo-request -j ACCEPT` | Pengecualian: ping dari subnet Terminal boleh masuk lewat `eth0` |
+| Rule 3: `-i eth0 -j DROP` | Menolak **semua** paket baru yang masuk dari arah Gendo |
+| Autostart di `/etc/profile` dan `/root/.bashrc` | Script dijalankan otomatis agar firewall persisten |
+
+**Kenapa memakai `-i eth0`, bukan daftar subnet luar?**
+Soal meminta penolakan berdasarkan arah datangnya dan melarang menulis subnet luar satu per satu. Dengan mencocokkan interface masuk `eth0` (sisi Shigeru yang menghadap Gendo), semua paket dari luar zona, termasuk subnet yang baru ditambahkan di kemudian hari, otomatis terblokir tanpa mengubah rule.
+
+**Kenapa urutan rule penting?**
+`ESTABLISHED,RELATED` harus di baris pertama agar balasan koneksi keluar tidak ikut terbuang oleh `DROP` di baris terakhir. Pengecualian ping Terminal harus berada **sebelum** `DROP`, karena iptables berhenti pada kecocokan pertama.
+
+---
+
+## 3. Langkah 2 — Pengujian dan Bukti
+
+### 3.1 Shigeru — cek aturan firewall yang aktif
+
+```bash
+iptables -S
+```
+
+**Hasil:**
+
+```
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -s 192.238.4.56/29 -i eth0 -p icmp -m icmp --icmp-type 8 -j ACCEPT
+-A FORWARD -i eth0 -j DROP
+```
+<img width="361" height="71" alt="Screenshot 2026-11-26 at 10 07 08" src="https://github.com/user-attachments/assets/1923758a-3546-4adf-a23c-e8b3455a684a" />
+
+![Shigeru: aturan firewall aktif (iptables -S)](4560a7f9-image.png)
+
+**Analisis:** Urutan chain `FORWARD` sesuai rancangan: `ESTABLISHED,RELATED` → `ACCEPT` ICMP dari `192.238.4.56/29` via `eth0` → `DROP` semua paket masuk via `eth0`.
+
+### 3.2 Magi-Casper (`192.238.4.58`) — ping ke Zeruel (harus berhasil)
+
+```bash
+ping -c 3 192.238.4.82
+```
+
+**Hasil:**
+
+```
+64 bytes from 192.238.4.82: icmp_seq=1 ttl=61 time=2.80 ms
+64 bytes from 192.238.4.82: icmp_seq=2 ttl=61 time=1.52 ms
+64 bytes from 192.238.4.82: icmp_seq=3 ttl=61 time=1.09 ms
+
+--- 192.238.4.82 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2223ms
+rtt min/avg/max/mdev = 1.092/1.803/2.800/0.725 ms
+```
+<img width="359" height="101" alt="Screenshot 2026-11-26 at 10 09 05" src="https://github.com/user-attachments/assets/a0882774-9321-4fc8-82f4-27ec33ca6936" />
+
+![Casper: ping ke Zeruel berhasil](6e20a6e9-image.png)
+
+### 3.3 Lilith (`192.238.4.74`) — ping ke Zeruel (harus gagal)
+
+```bash
+ping -c 3 -W 1 192.238.4.82
+```
+
+**Hasil:**
+
+```
+3 packets transmitted, 0 received, 100% packet loss, time 2263ms
+```
+<img width="363" height="223" alt="Screenshot 2026-11-26 at 10 10 00" src="https://github.com/user-attachments/assets/1d517cdb-552b-4bfd-b52c-ab653a9c409d" />
+
+![Lilith: ping ke Zeruel gagal](d0b1fac3-image.png)
+
+### 3.4 Zeruel (`192.238.4.82`) — node dalam zona tetap bisa memulai koneksi ke luar (Lilith dan 8.8.8.8)
+
+```bash
+ping -c 3 192.238.4.74
+ping -c 3 8.8.8.8
+```
+
+**Hasil:**
+
+```
+64 bytes from 192.238.4.74: icmp_seq=1 ttl=60 time=1.73 ms
+64 bytes from 192.238.4.74: icmp_seq=2 ttl=60 time=0.913 ms
+64 bytes from 192.238.4.74: icmp_seq=3 ttl=60 time=0.836 ms
+3 packets transmitted, 3 received, 0% packet loss, time 2223ms
+
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=110 time=20.0 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=110 time=19.8 ms
+64 bytes from 8.8.8.8: icmp_seq=3 ttl=110 time=19.9 ms
+3 packets transmitted, 3 received, 0% packet loss, time 2218ms
+```
+<img width="361" height="192" alt="Screenshot 2026-11-26 at 10 10 32" src="https://github.com/user-attachments/assets/f71e8fc7-dedc-44b1-a198-3dce16f9aa06" />
+
+![Zeruel: ping ke Lilith dan 8.8.8.8 berhasil](5561e8cc-image.png)
+
+**Analisis:** Zeruel (di dalam zona) dapat memulai koneksi ke Lilith (luar zona) dan ke internet (`8.8.8.8`), dan balasannya tetap sampai. Hal ini sesuai persyaratan "node di dalam zona boleh memulai koneksi ke mana saja".
+
+### 3.5 Shigeru — counter paket yang lolos dan yang dibuang
+
+```bash
+iptables -L FORWARD -n -v
+```
+
+**Hasil:**
+
+```
+Chain FORWARD (policy ACCEPT 2 packets, 168 bytes)
+ pkts bytes target  prot opt in    out  source           destination
+   15  1260 ACCEPT  all  --  *     *    0.0.0.0/0        0.0.0.0/0   ctstate RELATED,ESTABLISHED
+    1    84 ACCEPT  icmp --  eth0  *    192.238.4.56/29  0.0.0.0/0   icmptype 8
+    3   252 DROP    all  --  eth0  *    0.0.0.0/0        0.0.0.0/0
+```
+<img width="362" height="125" alt="Screenshot 2026-11-26 at 10 11 03" src="https://github.com/user-attachments/assets/6a78ede9-9e29-4538-9019-024541667a7e" />
+
+![Shigeru: counter chain FORWARD](8d5e9d84-image.png)
+
+**Analisis:**
+- Rule `DROP` mencatat **3 paket / 252 byte**. Angka ini sama dengan 3 ping dari Lilith (3 × 84 byte), yang semuanya dibuang karena datang dari `eth0` dan bukan dari subnet Terminal.
+- Rule pengecualian ICMP mencatat **1 paket / 84 byte**, yaitu paket pertama (`echo-request` yang berstatus koneksi baru) dari Casper. Dua paket berikutnya dari ping yang sama sudah berstatus `ESTABLISHED` sehingga ditangkap rule pertama.
+- Rule `ESTABLISHED,RELATED` mencatat **15 paket / 1260 byte**, yaitu balasan dan paket lanjutan dari koneksi yang sudah terbentuk (ping Casper serta ping Zeruel ke Lilith dan `8.8.8.8`).
+- Policy `ACCEPT` mencatat **2 paket / 168 byte**, yaitu paket pertama dari dua ping yang dimulai Zeruel dari dalam zona (ke Lilith dan `8.8.8.8`), yang tidak cocok dengan rule berbasis `eth0` sehingga jatuh ke policy `ACCEPT`.
+
+---
+
+## 4. Hasil dan Pembahasan
+
+| Pengujian | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
+|-----------|-----------------------|--------------|:-----------:|
+| Casper (subnet Terminal) → Zeruel `ping` | Berhasil | 3 diterima (0% loss) | ✅ |
+| Lilith (luar zona) → Zeruel `ping` | Gagal | 100% packet loss | ✅ |
+| Zeruel (dalam zona) → Lilith `ping` | Berhasil (balasan tetap sampai) | 3 diterima (0% loss) | ✅ |
+| Zeruel (dalam zona) → `8.8.8.8` `ping` | Berhasil | 3 diterima (0% loss) | ✅ |
+| Counter rule `DROP` | Naik untuk paket dari luar | 3 paket / 252 byte (ping Lilith) | ✅ |
+
+**Pembahasan:**
+
+1. **Penolakan berdasarkan arah datang.** Rule `-i eth0 -j DROP` menolak semua paket baru yang masuk dari sisi Shigeru yang menghadap Gendo. Karena tidak memakai daftar subnet luar, subnet baru yang ditambahkan nanti otomatis ikut terblokir.
+2. **Koneksi dari dalam zona tetap berjalan.** Rule `ESTABLISHED,RELATED` membuat balasan atas koneksi yang dimulai node dalam zona (Zeruel) tetap sampai. Terbukti dari ping Zeruel ke Lilith dan `8.8.8.8` yang berhasil 0% packet loss.
+3. **Pengecualian ping Terminal.** Ping dari subnet Terminal (`192.238.4.56/29`) boleh masuk karena rule `ACCEPT` ICMP `echo-request` berada sebelum `DROP`. Ping Casper ke Zeruel berhasil, sedangkan ping Lilith, yang bukan bagian dari subnet Terminal, gagal.
+4. **Bukti counter.** Counter `DROP` (3 paket / 252 byte) tepat sama dengan 3 ping Lilith, dan counter pengecualian ICMP mencatat paket pertama dari Casper.
+
+---
+
+## 5. Kesimpulan
+
+Dengan tiga rule di chain `FORWARD` pada Shigeru, yaitu `ESTABLISHED,RELATED → ACCEPT`, `ACCEPT` ICMP `echo-request` dari `192.238.4.56/29` via `eth0`, dan `DROP` semua paket masuk via `eth0`, zona yang dijaga Shigeru hanya dapat diakses sesuai aturan. Node di dalam zona dapat memulai koneksi ke mana saja dan balasannya tetap sampai, node di luar zona tidak dapat memulai koneksi ke dalam zona, dan ping dari subnet Terminal dikecualikan. Penolakan berbasis interface masuk (`-i eth0`) membuat subnet luar baru otomatis terblokir tanpa perlu ditulis satu per satu. Ping Casper ke Zeruel berhasil, sedangkan ping Lilith ke Zeruel gagal. Seluruh persyaratan Soal 18 terpenuhi.
