@@ -3027,7 +3027,7 @@ Dengan tiga rule di chain `FORWARD` pada Shigeru, yaitu `ESTABLISHED,RELATED →
 | Armisael | `192.238.4.83` | Target yang diisolasi total (listener TCP `9000`) |
 | Zeruel | `192.238.4.82` | Tetangga satu switch di `Switch-Monolith` — harus tetap normal (listener TCP `9000`) |
 | Shigeru (`eth1`) | `192.238.4.81` | Gateway subnet `192.238.4.80/29` dan router penjaga zona |
-| Lilith | `192.238.4.74` | Node di subnet `Switch-Dogma` — target uji lintas subnet (listener TCP `9000`) |
+| Lilith | `192.238.4.75` | Node di subnet `Switch-Dogma` — target uji lintas subnet (listener TCP `9000`) |
 | Seele | `8.8.8.8` | Tujuan eksternal / internet — target uji layanan TCP `53` |
 
 ---
@@ -3088,14 +3088,14 @@ nohup sh -c 'while true; do echo "Halo dari $(hostname)" | nc -l -p 9000 >/dev/n
 ```
 ping -c 3 -W 1 8.8.8.8
 ping -c 3 -W 1 192.238.4.82
-ping -c 3 -W 1 192.238.4.74
-nc -w 2 8.8.8.8 53 </dev/null; echo "Exit code Seele (8.8.8.8:53): $?"
-nc -w 2 192.238.4.82 9000 </dev/null; echo "Exit code Zeruel (9000): $?"
-nc -w 2 192.238.4.74 9000 </dev/null; echo "Exit code Lilith (9000): $?"
+ping -c 3 -W 1 192.238.4.75
+nc -v -w 2 8.8.8.8 53 </dev/null; echo "Exit code Seele (8.8.8.8:53): $?"
+nc -v -w 2 192.238.4.82 9000 </dev/null; echo "Exit code Zeruel (9000): $?"
+nc -v -w 2 192.238.4.75 9000 </dev/null; echo "Exit code Lilith (9000): $?"
 ```
 Hasil yang diharapkan semua paket yang di ping gagal agar bisa membuktikan bahwa aturan isolasi telah berhasil. 
 
-<img width="1059" height="489" alt="image" src="https://github.com/user-attachments/assets/562476c1-7f76-48de-8fd4-84c37fe5fd41" />
+<img width="1060" height="594" alt="image" src="https://github.com/user-attachments/assets/63ed1782-362e-49d0-8dba-e45bda57f8ed" />
 
 ### 3.2 Uji dari Zeruel 
 
@@ -3108,9 +3108,7 @@ nc -w 2 192.238.4.74 9000 </dev/null; echo "Exit code Lilith (9000): $?"
 
 Semua perintah ping harus berhasil untuk membuktikan aturan isolasi Armisael berhasil presisi dan tidak berpengaruh ke sesama subnet.
 
-<img width="943" height="494" alt="image" src="https://github.com/user-attachments/assets/6de792ad-d920-4deb-972d-25ccd7e690da" />
-
-
+<img width="1060" height="595" alt="image" src="https://github.com/user-attachments/assets/0ccf8c3e-3d93-4332-941c-cd885f3b60cc" />
 
 # Laporan Pengerjaan Soal 20 — Uji Kebakaran Geofront
 
