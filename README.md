@@ -104,13 +104,52 @@ Pada diagram pohon biner di atas, lima subnet yang membentuk jalur paket dari **
 | 4 | `192.238.4.152/30` | **Link Gendou – Shigeru** |
 | 5 | `192.238.4.80/29` | **Switch-Monolith** — tujuan `Armisael` |
 
+**Pembahasan:**
+
+1. **Efisiensi Alokasi VLSM:** Dengan mengurutkan kebutuhan dari yang terbesar (`/23` untuk 500 host) hingga terkecil (`/30` untuk link router-ke-router), seluruh 33 subnet dapat ditampung di dalam satu blok induk `192.238.0.0/21` tanpa terjadi tumpang tindih (*overlapping*) alamat jaringan.
+2. **Konsistensi Jalur Antar-Cabang:** Pemetaan pada pohon IP biner menunjukkan bahwa paket dari cabang `Switch-Lab` (`192.238.4.48/29`) melewati rangkaian link `/30` (`Asuka – Ritsuko` $\rightarrow$ `Gendou – Asuka` $\rightarrow$ `Gendou – Shigeru`) sebelum mencapai `Switch-Monolith` (`192.238.4.80/29`).
+
 ---
 
-## Soal 2
+## 5. Kesimpulan
 
-### Pengujian
+Perancangan subnetting VLSM pada blok induk `192.238.0.0/21` berhasil membagi ruang alamat untuk 17 segmen LAN dan 16 link *point-to-point* antar-router secara berurutan tanpa *overlapping*. Penentuan gateway pada IP *usable* pertama dan host pada IP *usable* berikutnya menjadi acuan standar bagi seluruh konfigurasi jaringan pada tahap berikutnya. Seluruh persyaratan Soal 1 terpenuhi.
 
-#### 1. Cek status IP & interface di tiap router
+---
+
+# Laporan Pengerjaan Soal 2 — Konfigurasi Alamat IP Router & Uji Konektivitas Point-to-Point
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Gendou, Yui, Fuyutsuki, Hikari, Asuka, dan Seluruh Router Cabang
+
+---
+
+## 1. Deskripsi & Kebutuhan Soal
+
+Menerapkan hasil rancangan alamat IP VLSM dari Soal 1 pada seluruh interface jaringan di setiap router (baik interface yang mengarah ke segmen LAN maupun interface link `/30` antar-router), mengaktifkan seluruh interface (`UP`), serta membuktikan konektivitas *point-to-point* pada seluruh **16 link router-ke-router**.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Pemasangan IP statis pada seluruh interface router | Mengonfigurasi IP dan prefix sesuai Tabel VLSM pada setiap interface router serta memastikan status link `UP` |
+| 2 | Verifikasi status interface & alamat IP | Mengecek konfigurasi menggunakan perintah `ip -br a` di masing-masing router |
+| 3 | Pengujian konektivitas ke seluruh 16 link antar-router | Melakukan `ping` langsung ke alamat IP router tetangga pada setiap link `/30` |
+
+### Contoh link point-to-point yang diuji
+
+| Router Penguji | Router Tetangga / Tujuan | Alamat IP Tujuan (`/30`) |
+|----------------|--------------------------|--------------------------|
+| Gendou | 7 Router Cabang Utama | `192.238.4.110`, `192.238.4.126`, `192.238.4.134`, `192.238.4.146`, `192.238.4.150`, `192.238.4.154`, `192.238.4.162` |
+| Yui | Mari, Rei, Shinji | `192.238.4.114`, `192.238.4.118`, `192.238.4.122` |
+| Hikari | Kaworu | `192.238.4.130` |
+| Asuka | Kensuke, Ritsuko | `192.238.4.138`, `192.238.4.142` |
+
+---
+
+### 2. Pengujian dan Bukti
+
+#### 2.1 Cek status IP & interface di tiap router
 
 ```bash
 ip -br a
@@ -128,7 +167,9 @@ ip -br a
 
 <img src="https://github.com/user-attachments/assets/2718ddd5-7ba5-4665-bc0d-99ad950d4f56" width="550" alt="ip -br a Fuyutsuki">
 
-#### 2. Uji ping ke seluruh 16 link router-ke-router (loop satu baris)
+**Analisis:** Seluruh interface pada `Gendou`, `Yui`, dan `Fuyutsuki` telah terpasang alamat IP dan *prefix* sesuai rancangan VLSM dengan status interface aktif.
+
+#### 2.2 Uji ping ke seluruh 16 link router-ke-router (loop satu baris)
 
 **Gendou** (uji ke 7 link router cabang utama)
 
@@ -168,11 +209,64 @@ for ip in 192.238.4.138 192.238.4.142; do ping -c 2 -W 1 $ip; done
 
 ---
 
-## Soal 3
+## 3. Hasil dan Pembahasan
 
-### Pengujian
+| Pengujian | Jalur Link | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
+|-----------|------------|-----------------------|--------------|:-----------:|
+| Cek `ip -br a` di router | Interface LAN & WAN/Link | Seluruh IP sesuai VLSM & aktif | Terpasang lengkap | ✅ |
+| Ping Gendou → 7 router cabang | 7 link `/30` utama | 0% packet loss | 0% packet loss di semua link | ✅ |
+| Ping Yui → Mari, Rei, Shinji | 3 link `/30` cabang Yui | 0% packet loss | 0% packet loss di semua link | ✅ |
+| Ping Hikari → Kaworu | Link `/30` Hikari–Kaworu | 0% packet loss | 0% packet loss | ✅ |
+| Ping Asuka → Kensuke & Ritsuko | 2 link `/30` cabang Asuka | 0% packet loss | 0% packet loss di semua link | ✅ |
 
-#### 1. Cek tabel routing
+**Pembahasan:**
+
+1. **Verifikasi Koneksi Langsung (*Directly Connected*):** Sebelum mengonfigurasi tabel routing antar-segmen, setiap link `/30` antar-router wajib dipastikan terhubung dengan subnet mask yang tepat sehingga pasangan router berada dalam satu jaringan titik-ke-titik.
+2. **Keberhasilan Seluruh 16 Link:** Hasil pengujian `ping` dari `Gendou`, `Yui`, `Hikari`, dan `Asuka` (serta link cabang lainnya) menunjukkan `0% packet loss` dengan TTL `64`, menandakan lapisan fisik dan *data-link* antar-router telah siap untuk proses *routing*.
+
+---
+
+## 4. Kesimpulan
+
+Seluruh interface pada router telah dikonfigurasi sesuai alokasi IP VLSM dan aktif. Pengujian `ping` *point-to-point* pada seluruh 16 link router-ke-router berhasil dengan `0% packet loss`. Seluruh persyaratan Soal 2 terpenuhi.
+
+---
+
+# Laporan Pengerjaan Soal 3 — Konfigurasi Static Routing & Uji Konektivitas Lintas Cabang
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Gendou, Yui, Shigeru, Armisael, Quarters, Lilith, Sachiel, Comm-Net
+
+---
+
+## 1. Deskripsi & Kebutuhan Soal
+
+Mengaktifkan penerusan paket (`net.ipv4.ip_forward = 1`) dan membangun tabel **Static Routing** (termasuk penerapan *route summarization* seperti blok `192.238.4.80/28` untuk cabang `Shigeru`) pada seluruh router agar paket dapat mengalir antar-subnet yang berjauhan maupun menuju internet (`8.8.8.8`).
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Mengaktifkan IP Forwarding di seluruh router | Memastikan `net.ipv4.ip_forward = 1` aktif pada kernel setiap router |
+| 2 | Konfigurasi *default route* dan *static route* | Menambahkan rute menuju jaringan internal maupun gateway atas (*upstream*) serta *route summarization* pada router distribusi |
+| 3 | Verifikasi tabel routing & konektivitas internet | Mengecek `ip route` dan melakukan `ping 8.8.8.8` dari router |
+| 4 | Uji konektivitas ujung-ke-ujung (*end-to-end*) lintas cabang | Memasang IP sementara pada 5 host uji berjauhan dan melakukan `ping` lintas cabang dari `Armisael` |
+
+### Daftar 5 host uji sementara lintas cabang
+
+| Host Uji | Cabang / Subnet | Alamat IP Uji | Default Gateway |
+|----------|-----------------|---------------|-----------------|
+| Armisael | Switch-Monolith (Cabang Shigeru) | `192.238.4.83/29` | `192.238.4.81` |
+| Quarters | Switch-Quarters (Cabang Rei/Yui) | `192.238.0.2/23` | `192.238.0.1` |
+| Lilith | Switch-Dogma | `192.238.4.74/29` | `192.238.4.73` |
+| Sachiel | Switch-Sachiel | `192.238.3.130/26` | `192.238.3.129` |
+| Comm-Net | Switch-Comm-Net | `192.238.2.2/24` | `192.238.2.1` |
+
+---
+
+## 2. Pengujian dan Bukti
+
+### 2.1 Cek tabel routing & ping ke `8.8.8.8`
 
 ```bash
 ip route
@@ -193,7 +287,9 @@ ping -c 3 8.8.8.8
 
 <img src="https://github.com/user-attachments/assets/44384bff-136a-4204-ab28-5ef5293016a6" width="550" alt="Routing Shigeru">
 
-#### 2. Pasang IP sementara pada 5 host uji dari cabang yang berjauhan
+**Analisis:** Tabel `ip route` di `Gendou`, `Yui`, dan `Shigeru` menampilkan entri *default route*, rute statis ke tiap subnet cabang, serta ringkasan rute (*route summary*) seperti `192.238.4.80/28` menuju `Shigeru`, dan uji `ping 8.8.8.8` berhasil `0% packet loss`.
+
+#### 2.2 Pasang IP sementara pada 5 host uji dari cabang yang berjauhan
 
 **Armisael** (Cabang Shigeru — menguji summary `192.238.4.80/28`)
 
@@ -225,7 +321,7 @@ ip addr flush dev eth0 && ip addr add 192.238.3.130/26 dev eth0 && ip link set e
 ip addr flush dev eth0 && ip addr add 192.238.2.2/24 dev eth0 && ip link set eth0 up && ip route replace default via 192.238.2.1
 ```
 
-#### 3. Uji ping lintas cabang dari Armisael
+#### 2.3 Uji ping lintas cabang dari Armisael
 
 ```bash
 for ip in 192.238.0.2 192.238.4.74 192.238.3.130 192.238.2.2; do ping -c 3 $ip; done
@@ -237,19 +333,71 @@ for ip in 192.238.0.2 192.238.4.74 192.238.3.130 192.238.2.2; do ping -c 3 $ip; 
 
 ---
 
-## Soal 4
+## 3. Hasil dan Pembahasan
 
-### Pengujian
+| Skenario Pengujian | Tujuan | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
+|--------------------|--------|-----------------------|--------------|:-----------:|
+| `ip route` & `ping 8.8.8.8` di Router | Internet (`8.8.8.8`) | Berhasil (0% loss) | 0% packet loss | ✅ |
+| Armisael → Quarters (`192.238.0.2`) | Lintas cabang ke Rei/Yui | Berhasil (0% loss) | 0% packet loss | ✅ |
+| Armisael → Lilith (`192.238.4.74`) | Lintas cabang ke Dogma | Berhasil (0% loss) | 0% packet loss | ✅ |
+| Armisael → Sachiel (`192.238.3.130`) | Lintas cabang ke Sachiel | Berhasil (0% loss) | 0% packet loss | ✅ |
+| Armisael → Comm-Net (`192.238.2.2`) | Lintas cabang ke Comm-Net | Berhasil (0% loss) | 0% packet loss | ✅ |
 
-#### 1. Cek interface, rute & DHCP relay
+**Pembahasan:**
 
-Minta IP DHCP dulu di node yang akan diuji:
+1. **Simetri Jalur Pergi dan Pulang:** Keberhasilan `ping` dua arah antara `Armisael` dengan keempat host dari cabang berbeda membuktikan bahwa setiap router di sepanjang jalur memiliki entri rute menuju jaringan tujuan maupun rute balik menuju jaringan asal (`192.238.4.80/29`).
+2. **Efektivitas *Route Summarization*:** Rute ringkasan `192.238.4.80/28` di router pusat (`Gendou`) berhasil menggabungkan subnet `Switch-Monolith` (`192.238.4.80/29`) dan `Switch-Radar` (`192.238.4.88/29`) dalam satu entri routing yang mengarah ke `Shigeru`.
+
+---
+
+## 4. Kesimpulan
+
+Konfigurasi *static routing* dan *ip forwarding* pada seluruh router telah berjalan dengan baik. Router maupun host uji dari berbagai cabang yang berjauhan (`Armisael`, `Quarters`, `Lilith`, `Sachiel`, dan `Comm-Net`) dapat saling berkomunikasi serta menjangkau `8.8.8.8` tanpa kehilangan paket. Seluruh persyaratan Soal 3 terpenuhi.
+
+---
+
+# Laporan Pengerjaan Soal 4 — DHCP Server Terpusat, DHCP Relay, & NAT Masquerade
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Gendou (DHCP Server & NAT Gateway), Router Cabang (DHCP Relay), Spy, Armisael, Dock-Crew
+
+---
+
+## 1. Deskripsi & Kebutuhan Soal
+
+Menyediakan layanan pemberian alamat IP otomatis secara terpusat di router **`Gendou`** (`isc-dhcp-server`) untuk seluruh subnet klien, meneruskan permintaan DHCP lintas router menggunakan **`isc-dhcp-relay`** pada router-router distribusi/cabang, serta mengaktifkan **NAT Masquerade** pada interface WAN `eth0` milik `Gendou` agar seluruh klien dinamis dapat mengakses internet dan melakukan resolusi nama domain (`google.com`).
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Layanan DHCP Server terpusat di `Gendou` | Instalasi dan konfigurasi `isc-dhcp-server` dengan *subnet pool*, *default gateway*, dan DNS `8.8.8.8` untuk tiap segmen klien |
+| 2 | Penerusan paket DHCP lintas subnet | Mengaktifkan `isc-dhcp-relay` pada setiap router cabang menuju IP `Gendou` |
+| 3 | Translasi alamat privat ke publik (NAT) | Menambahkan rule `iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE` di `Gendou` |
+| 4 | Verifikasi pada klien dinamis & log server | Meminta IP via `udhcpc -i eth0` pada `Spy`, `Armisael`, dan `Dock-Crew`, menguji `ping 8.8.8.8` & `google.com`, serta memeriksa `dhcpd.leases` |
+
+### Perangkat uji DHCP & NAT
+
+| Perangkat | Subnet / Segmen | Metode Konfigurasi IP |
+|-----------|-----------------|----------------------|
+| Gendou | Gateway Utama (`eth0` ke NAT1) | DHCP Server + NAT Masquerade |
+| Spy | Switch-Intel (`192.238.4.96/29`) | Klien dinamis (`udhcpc -i eth0`) |
+| Armisael | Switch-Monolith (`192.238.4.80/29`) | Klien dinamis (`udhcpc -i eth0`) |
+| Dock-Crew | Switch-Dock | Klien dinamis (`udhcpc -i eth0`) |
+
+---
+
+## 2. Pengujian dan Bukti 
+
+### 2.1 Cek interface, rute & DHCP relay di klien
+
+Meminta alamat IP otomatis terlebih dahulu pada setiap node uji:
 
 ```bash
 udhcpc -i eth0
 ```
 
-Lalu gunakan perintah ini untuk pengujian:
+Kemudian melakukan verifikasi IP, *default gateway*, konektivitas ke internet (`8.8.8.8`), dan resolusi DNS (`google.com`):
 
 ```bash
 ip -br a
@@ -276,7 +424,9 @@ ping -c 3 google.com
 
 <img src="https://github.com/user-attachments/assets/a061a3ae-5276-468f-93b3-9b5db1c2862f" width="550" alt="Dock-Crew 2">
 
-#### 2. Cek apakah DHCP Server & Masquerade sudah aktif di Gendou
+**Analisis:** Ketiga host uji (`Spy`, `Armisael`, dan `Dock-Crew`) berhasil memperoleh alamat IP sesuai subnet masing-masing, *default gateway*, serta *nameserver* `8.8.8.8` melalui mekanisme DHCP Relay, dan berhasil melakukan `ping` ke `8.8.8.8` maupun `google.com`.
+
+### 2.2 Cek status DHCP Server & Masquerade di Gendou
 
 ```bash
 cat /var/lib/dhcp/dhcpd.leases
@@ -293,11 +443,65 @@ iptables -t nat -L POSTROUTING -n -v
 
 ---
 
-## Soal 5
+## 3. Hasil dan Pembahasan
 
-### Langkah 1: Tambahkan aturan firewall ke Gendou
+| Pengujian | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
+|-----------|-----------------------|--------------|:-----------:|
+| `udhcpc` pada Spy, Armisael, Dock-Crew | Memperoleh IP, gateway, dan DNS sesuai subnet | Berhasil memperoleh IP dinamis & rute default | ✅ |
+| `ping -c 3 8.8.8.8` dari klien DHCP | Berhasil | 0% packet loss | ✅ |
+| `ping -c 3 google.com` dari klien DHCP | Resolusi DNS & ping berhasil | 0% packet loss | ✅ |
+| `/var/lib/dhcp/dhcpd.leases` di Gendou | Mencatat alokasi *lease* klien | Data *lease* klien tercatat aktif | ✅ |
+| `iptables -t nat -L POSTROUTING -n -v` | Rule `MASQUERADE` pada `eth0` aktif | Counter paket & byte meningkat | ✅ |
 
-Masukkan script ini ke Gendou:
+**Pembahasan:**
+
+1. **Peran DHCP Relay:** Karena pesan *broadcast* `DHCPDISCOVER` dari klien tidak dapat melewati router secara bawaan, `isc-dhcp-relay` pada router cabang bertugas menangkap *broadcast* lokal dan meneruskannya secara *unicast* ke `Gendou` dengan menyertakan alamat *relay agent* (`giaddr`) sehingga `Gendou` dapat memberikan IP dari *pool* subnet yang tepat.
+2. **Translasi NAT Masquerade:** Alamat IP privat `192.238.0.0/21` tidak dapat dirutekan di internet publik. Rule `MASQUERADE` di chain `POSTROUTING` milik `Gendou` menerjemahkan alamat sumber paket keluar menjadi IP interface WAN `eth0` secara dinamis, memungkinkan klien mengakses `8.8.8.8` dan `google.com`.
+
+---
+
+## 4. Kesimpulan
+
+Layanan DHCP Server terpusat dan NAT Masquerade di `Gendou` beserta DHCP Relay pada router cabang berhasil beroperasi. Klien dinamis (`Spy`, `Armisael`, dan `Dock-Crew`) memperoleh konfigurasi jaringan otomatis dan dapat terhubung ke internet maupun melakukan resolusi DNS dengan lancar. Seluruh persyaratan Soal 4 terpenuhi.
+
+---
+
+# Laporan Pengerjaan Soal 5 — Pengamanan Firewall pada Router Gerbang Utama (`Gendou`)
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Gendou (Router Gateway/Firewall), Jaringan Internal (`192.238.0.0/21`), Internet (`eth0`)
+
+---
+
+## 1. Deskripsi & Kebutuhan Soal
+
+Menerapkan kebijakan keamanan jaringan (*default-deny* untuk trafik masuk dan diteruskan) pada router perbatasan utama **`Gendou`** dengan mengatur *default policy* **`INPUT DROP`** dan **`FORWARD DROP`**, serta **`OUTPUT ACCEPT`**, sambil tetap mengizinkan seluruh komunikasi jaringan internal yang sah.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Default policy aman pada `Gendou` | Mengatur `-P INPUT DROP`, `-P FORWARD DROP`, dan `-P OUTPUT ACCEPT` |
+| 2 | Menjaga trafik sistem lokal & DHCP WAN `Gendou` | Mengizinkan interface loopback (`lo`) dan paket balasan DHCP pada `eth0` (`udp --sport 67 --dport 68`) |
+| 3 | Mengizinkan balasan koneksi yang sudah terbentuk | Menambahkan rule `conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT` pada chain `INPUT` dan `FORWARD` |
+| 4 | Mengizinkan akses internet & komunikasi antar-LAN internal | Mengizinkan `FORWARD` dari `192.238.0.0/21` menuju `eth0` (internet) maupun menuju `192.238.0.0/21` (antar-LAN) |
+| 5 | Mengizinkan akses internal & DHCP ke `Gendou` | Mengizinkan `INPUT` dari `192.238.0.0/21` dan paket permintaan DHCP (`udp --dport 67`) pada interface non-WAN (`! -i eth0`) |
+
+### Interface dan blok jaringan `Gendou`
+
+| Komponen | Nilai | Keterangan |
+|----------|-------|------------|
+| `eth0` | Interface WAN | Menghadap Cloud / NAT1 (Internet) |
+| `! -i eth0` / `! -o eth0` | Interface Internal | Seluruh interface yang menghadap jaringan internal NERV |
+| `192.238.0.0/21` | Blok IP Internal | Seluruh segmen LAN dan link antar-router |
+
+---
+
+## 2. Langkah Pengerjaan di Gendou
+
+### 2.1 Menambahkan blok firewall Soal 5 ke `/root/gendo.sh`
+
+Skrip `/root/gendo.sh` diperbarui agar opsi `apt-get` aman terhadap tanggal sistem saat *restart*, lalu blok aturan firewall Soal 5 ditambahkan secara idempoten di bagian bawah skrip tanpa menghapus konfigurasi DHCP Server dan NAT Masquerade yang sudah ada.
 
 ```bash
 # 1. Pastikan flag tanggal apt-get di gendo.sh aman saat GNS3 restart
@@ -338,9 +542,22 @@ EOF
 bash /root/gendo.sh
 ```
 
-### Pengujian
+**Penjelasan:**
 
-#### 1. Cek aturan firewall dan default policy pada INPUT & FORWARD di Gendou
+| Bagian / Rule | Fungsi |
+|---------------|--------|
+| `-P INPUT DROP` & `-P FORWARD DROP` | Menutup seluruh koneksi masuk dan penerusan paket secara default dari luar |
+| `-i lo -j ACCEPT` & `-i eth0 -p udp --sport 67 --dport 68 -j ACCEPT` | Menjaga komunikasi internal loopback serta pembaruan IP DHCP interface WAN `eth0` dari NAT1 |
+| `-m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT` | Mengizinkan paket balasan dari sesi koneksi yang sudah diinisiasi lebih dulu |
+| `! -i eth0 -s 192.238.0.0/21 -o eth0 -j ACCEPT` | Mengizinkan seluruh klien internal mengakses internet melalui `eth0` |
+| `! -i eth0 ! -o eth0 -s 192.238.0.0/21 -d 192.238.0.0/21 -j ACCEPT` | Mengizinkan lalu lintas antar-LAN internal yang melewati `Gendou` |
+| `! -i eth0 -s 192.238.0.0/21 -j ACCEPT` & `--dport 67 -j ACCEPT` | Mengizinkan komunikasi dari jaringan internal maupun permintaan *broadcast* DHCP (`0.0.0.0` ke port 67) menuju layanan di `Gendou` |
+
+---
+
+## 3. Pengujian dan Bukti
+
+### 3.1 Cek aturan firewall dan default policy pada INPUT & FORWARD di Gendou
 
 ```bash
 iptables -S
@@ -348,7 +565,9 @@ iptables -S
 
 <img src="https://github.com/user-attachments/assets/bcd8b2ce-7ee6-4a11-b003-a077b9a72b07" width="550" alt="iptables -S Gendou">
 
-#### 2. Membuktikan akses internet, akses ke Gendou, dan akses antar LAN masih berjalan mulus
+**Analisis:** Policy `INPUT` dan `FORWARD` telah berubah menjadi `DROP`, sedangkan aturan izin untuk `lo`, DHCP, `ESTABLISHED,RELATED`, akses internet internal, dan komunikasi antar-LAN terpasang dengan urutan yang sesuai.
+
+#### 3.2 Membuktikan akses internet, akses ke Gendou, dan akses antar LAN masih berjalan mulus
 
 ```bash
 ping -c 3 8.8.8.8
@@ -356,6 +575,28 @@ ping -c 3 192.238.4.105
 ```
 
 <img src="https://github.com/user-attachments/assets/df5de829-3b03-47ec-9c2a-9c2b3490f97b" width="550" alt="Ping setelah firewall">
+
+---
+
+## 4. Hasil dan Pembahasan
+
+| Pengujian | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
+|-----------|-----------------------|--------------|:-----------:|
+| Policy `INPUT` & `FORWARD` di Gendou | `DROP` (`OUTPUT ACCEPT`) | Sesuai (`iptables -S`) | ✅ |
+| Akses internet (`ping 8.8.8.8`) | Tetap berjalan normal | 0% packet loss | ✅ |
+| Akses gateway / antar-LAN (`ping 192.238.4.105`) | Tetap berjalan normal | 0% packet loss | ✅ |
+| Layanan DHCP Server & NAT di Gendou | Tidak terganggu oleh firewall | Tetap aktif | ✅ |
+
+**Pembahasan:**
+
+1. **Prinsip *Stateful Firewall*:** Dengan mengombinasikan default policy `DROP` dan modul `conntrack` (`ESTABLISHED,RELATED`), `Gendou` menolak koneksi liar yang diinisiasi dari luar (`eth0`), namun tetap meneruskan balasan atas koneksi yang dimulai dari jaringan internal.
+2. **Dukungan *Broadcast* DHCP:** Penambahan rule khusus `-p udp --dport 67` pada interface internal diperlukan karena paket `DHCPDISCOVER` dikirim dengan alamat sumber `0.0.0.0` (bukan `192.238.0.0/21`), sehingga tetap dapat diterima oleh daemon `isc-dhcp-server` di `Gendou`.
+
+---
+
+## 5. Kesimpulan
+
+Kebijakan firewall *default-drop* (`INPUT DROP` dan `FORWARD DROP`) telah diterapkan pada `Gendou` secara persisten di `/root/gendo.sh`. Seluruh akses internet, komunikasi antar-LAN, dan layanan DHCP internal tetap berfungsi normal sementara akses tidak sah dari luar ditolak. Seluruh persyaratan Soal 5 terpenuhi.
 
 ---
 
