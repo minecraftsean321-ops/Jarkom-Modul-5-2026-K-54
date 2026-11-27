@@ -9,7 +9,7 @@
 
 ## Daftar Isi
 
-- [Soal 1: Perancangan Subnetting VLSM](#soal-1-perancangan-subnetting-vlsm-19223800021)
+- [Soal 1: Perancangan Subnetting VLSM](#soal-1-perancangan-subnetting-vlsm-1922380021)
 - [Soal 2](#soal-2)
 - [Soal 3](#soal-3)
 - [Soal 4](#soal-4)
@@ -19,6 +19,16 @@
 - [Soal 8](#soal-8)
 - [Soal 9](#soal-9)
 - [Soal 10](#soal-10)
+- [Soal 11: Casper Harus Jadi Hantu](#soal-11-casper-harus-jadi-hantu)
+- [Soal 12: Teknisi yang Kelewat Semangat](#soal-12-teknisi-yang-kelewat-semangat)
+- [Soal 13: Brankas Balthasar](#soal-13-brankas-balthasar)
+- [Soal 14: Jam Kunjungan Sang Pinguin](#soal-14-jam-kunjungan-sang-pinguin)
+- [Soal 15: Banjir Ping di Pusat Komando](#soal-15-banjir-ping-di-pusat-komando)
+- [Soal 16: Pencuri yang Mencoba Setiap Pintu](#soal-16-pencuri-yang-mencoba-setiap-pintu)
+- [Soal 17: Sihir Hitam di Jalur Paket](#soal-17-sihir-hitam-di-jalur-paket)
+- [Soal 18: Gerbang Monolith dan Radar](#soal-18-gerbang-monolith-dan-radar)
+- [Soal 19: Hukuman untuk Sang Pengkhianat](#soal-19-hukuman-untuk-sang-pengkhianat)
+- [Soal 20: Uji Kebakaran Geofront](#soal-20-uji-kebakaran-geofront)
 
 ---
 
@@ -690,18 +700,21 @@ ping -c 3 8.8.8.8
 
 <img src="https://github.com/user-attachments/assets/3917e92c-c297-44c4-9b32-924bc65a510b" width="550" alt="Verifikasi ping Unit-01">
 
-# Laporan Pengerjaan Soal 11 — Casper Harus Jadi Hantu
+---
+
+## Soal 11: Casper Harus Jadi Hantu
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3) — Magi-Casper, Magi-Balthasar, Lilith
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Casper harus jadi hantu:** Casper adalah MAGI paling rahasia. Kalau SEELE tahu ia masih hidup, mereka tahu ke mana harus menyerang. **Tidak ada perangkat lain yang boleh mem-ping Casper**, termasuk yang satu switch. Casper sendiri tetap boleh mem-ping siapa saja. Layanan **TCP 5000** Casper tetap hidup. Buktikan ping ke Casper dari Balthasar dan Lilith **gagal**, sedangkan ping dari Casper ke keduanya **berhasil**.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Pendekatan |
 |----|-----------|------------|
@@ -709,7 +722,7 @@ ping -c 3 8.8.8.8
 | 2 | Casper tetap boleh ping ke siapa saja | Chain `OUTPUT` tetap `ACCEPT`; echo-reply yang kembali tidak ikut diblokir |
 | 3 | Layanan TCP 5000 tetap hidup | Rule hanya menargetkan ICMP, listener `nc` port 5000 tidak disentuh |
 
-### Alamat IP
+#### Alamat IP
 
 | Perangkat | IP | Keterangan |
 |-----------|----|------------|
@@ -719,9 +732,9 @@ ping -c 3 8.8.8.8
 
 ---
 
-## 2. Langkah Pengerjaan di Magi-Casper
+### 2. Langkah Pengerjaan di Magi-Casper
 
-### 2.1 Menambahkan blok firewall Soal 11 ke `/root/casper.sh`
+#### 2.1 Menambahkan blok firewall Soal 11 ke `/root/casper.sh`
 
 Blok firewall ditambahkan di **bagian paling bawah** script `/root/casper.sh`. Perintah `sed` pertama menghapus blok Soal 11 lama (jika ada) agar tidak terduplikasi, tanpa menghapus bagian listener port 5000 di atasnya.
 
@@ -755,7 +768,7 @@ Jika seluruh ICMP diblokir, balasan ping (`echo-reply`) untuk ping yang dikirim 
 
 > **Verifikasi:** Jalankan `cat /root/casper.sh` dan pastikan blok `# === SOAL 11: FIREWALL ===` muncul di bagian paling bawah tanpa menghapus bagian listener port 5000 di atasnya.
 
-### 2.2 Menerapkan konfigurasi dan mengecek iptables serta listener port 5000
+#### 2.2 Menerapkan konfigurasi dan mengecek iptables serta listener port 5000
 
 ```bash
 bash /root/casper.sh
@@ -773,9 +786,7 @@ ss -tlnp | grep 5000
 LISTEN 0  1  0.0.0.0:5000  0.0.0.0:*  users:(("nc.traditional",pid=411,fd=3))
 ```
 
-![Hasil bash casper.sh, iptables -S, dan ss -tlnp](afd05488-image.png)
-<img width="412" height="106" alt="Screenshot 2026-11-25 at 07 46 31" src="https://github.com/user-attachments/assets/df575be6-b370-4743-8a21-82a381555c9e" />
-
+<img src="https://github.com/user-attachments/assets/df575be6-b370-4743-8a21-82a381555c9e" width="412" alt="Hasil bash casper.sh, iptables -S, dan ss -tlnp">
 
 **Analisis:**
 - `iptables -S` menampilkan rule `-A INPUT -p icmp -m icmp --icmp-type 8 -j DROP` dengan policy default `ACCEPT`. Rule pemblokiran ping masuk sudah aktif.
@@ -783,9 +794,9 @@ LISTEN 0  1  0.0.0.0:5000  0.0.0.0:*  users:(("nc.traditional",pid=411,fd=3))
 
 ---
 
-## 3. Pengujian Ping Masuk dan Keluar
+### 3. Pengujian Ping Masuk dan Keluar
 
-### 3.1 Dari Magi-Balthasar (`192.238.4.59`) → Casper (satu switch)
+#### 3.1 Dari Magi-Balthasar (`192.238.4.59`) → Casper (satu switch)
 
 Hasil yang diharapkan: **gagal / 100% packet loss**.
 
@@ -802,11 +813,9 @@ PING 192.238.4.58 (192.238.4.58) 56(84) bytes of data.
 3 packets transmitted, 0 received, 100% packet loss, time 2253ms
 ```
 
-![Ping Balthasar ke Casper](df88acbb-image.png)
-<img width="412" height="114" alt="Screenshot 2026-11-25 at 07 48 09" src="https://github.com/user-attachments/assets/14ccd987-fb5a-4fd8-bacb-3c4c6836c752" />
+<img src="https://github.com/user-attachments/assets/14ccd987-fb5a-4fd8-bacb-3c4c6836c752" width="412" alt="Ping Balthasar ke Casper">
 
-
-### 3.2 Dari Lilith (`192.238.4.74`) → Casper (lintas subnet)
+#### 3.2 Dari Lilith (`192.238.4.74`) → Casper (lintas subnet)
 
 Hasil yang diharapkan: **gagal / 100% packet loss**.
 
@@ -823,11 +832,9 @@ PING 192.238.4.58 (192.238.4.58) 56(84) bytes of data.
 3 packets transmitted, 0 received, 100% packet loss, time 2290ms
 ```
 
-![Ping Lilith ke Casper](2e349bdc-image.png)
-<img width="408" height="217" alt="Screenshot 2026-11-25 at 07 48 52" src="https://github.com/user-attachments/assets/dd8bc504-3406-4e25-b1d7-19f27b12bad5" />
+<img src="https://github.com/user-attachments/assets/dd8bc504-3406-4e25-b1d7-19f27b12bad5" width="408" alt="Ping Lilith ke Casper">
 
-
-### 3.3 Dari Magi-Casper (`192.238.4.58`) → Balthasar & Lilith
+#### 3.3 Dari Magi-Casper (`192.238.4.58`) → Balthasar & Lilith
 
 Hasil yang diharapkan: **berhasil / 0% packet loss**, lalu cek counter paket yang di-drop.
 
@@ -859,13 +866,12 @@ rtt min/avg/max/mdev = 0.382/0.589/0.833/0.185 ms
 Chain INPUT (policy DROP 0 packets, 0 bytes)
 pkts bytes target     prot opt in     out     source               destination
 ```
-<img width="482" height="263" alt="Screenshot 2026-11-27 at 09 59 02" src="https://github.com/user-attachments/assets/61d4ec8d-2e3e-47ec-8308-7954bc916cf9" />
-![Ping Casper ke Balthasar & Lilith dan counter iptables](9c34eb2e-image.png)
 
+<img src="https://github.com/user-attachments/assets/61d4ec8d-2e3e-47ec-8308-7954bc916cf9" width="482" alt="Ping Casper ke Balthasar & Lilith dan counter iptables">
 
 ---
 
-## 4. Hasil dan Analisis
+### 4. Hasil dan Analisis
 
 | Skenario | Arah | Hasil | Sesuai Soal |
 |----------|------|-------|:-----------:|
@@ -885,22 +891,25 @@ pkts bytes target     prot opt in     out     source               destination
 
 ---
 
-## 5. Kesimpulan
+### 5. Kesimpulan
 
 Dengan menambahkan satu rule `iptables -A INPUT -p icmp --icmp-type echo-request -j DROP` pada `/root/casper.sh`, Casper tidak dapat di-ping oleh perangkat mana pun (baik satu switch maupun lintas subnet), tetap dapat mem-ping ke luar, dan layanan TCP 5000 tetap berjalan. Seluruh persyaratan Soal 11 terpenuhi.
 
-# Laporan Pengerjaan Soal 12 — Teknisi yang Kelewat Semangat
+---
+
+## Soal 12: Teknisi yang Kelewat Semangat
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3) — Magi-Casper, Unit-00, Lilith
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Teknisi yang kelewat semangat:** seorang teknisi menjalankan script hardening di Casper lalu pulang tanpa mengecek. Paginya Casper tidak bisa ping `8.8.8.8` dan tidak bisa `apt-get update`. Unit-00 juga tidak bisa menyambung ke TCP 5000 Casper. Ping ke Casper tetap ditolak, dan itu memang benar. Jalankan `break_fw.sh` di **Magi-Casper**, lalu perbaiki **tanpa membatalkan tujuan hardening**. Casper tetap menolak semua lalu lintas masuk yang tidak diizinkan, dan **policy INPUT tetap DROP**. Buktikan `nc` dari Unit-00 ke Casper port 5000 berhasil dan `apt-get update` di Casper berhasil.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Pendekatan |
 |----|-----------|------------|
@@ -909,7 +918,7 @@ Dengan menambahkan satu rule `iptables -A INPUT -p icmp --icmp-type echo-request
 | 3 | Ping ke Casper tetap ditolak | Pertahankan DROP pada ICMP `echo-request` |
 | 4 | Policy `INPUT` tetap `DROP` | Tidak mengubah policy menjadi ACCEPT |
 
-### Alamat IP
+#### Alamat IP
 
 | Perangkat | IP | Keterangan |
 |-----------|----|------------|
@@ -919,13 +928,13 @@ Dengan menambahkan satu rule `iptables -A INPUT -p icmp --icmp-type echo-request
 
 ---
 
-## 2. Gejala Kerusakan (Sebelum Diperbaiki)
+### 2. Gejala Kerusakan (Sebelum Diperbaiki)
 
 Setelah `break_fw.sh` dijalankan di Magi-Casper, gejala berikut diambil sebagai bukti.
 
 > **Catatan:** Tambahkan screenshot proses pengecekan `/tmp` dan pengunduhan/eksekusi `break_fw.sh` di sini jika diperlukan.
 
-### 2.1 Magi-Casper — ping keluar dan `apt-get update` gagal
+#### 2.1 Magi-Casper — ping keluar dan `apt-get update` gagal
 
 ```bash
 ping -c 3 -W 2 8.8.8.8
@@ -948,11 +957,10 @@ Err:3 http://deb.debian.org/debian-security trixie-security InRelease
   Temporary failure resolving 'deb.debian.org'
 W: Some index files failed to download. They have been ignored, or old ones used instead.
 ```
-<img width="364" height="303" alt="Screenshot 2026-11-25 at 08 32 30" src="https://github.com/user-attachments/assets/04dad4bf-f14e-4c49-bee8-feee51f390c3" />
 
-![Casper: ping 8.8.8.8 dan apt-get update gagal](051f6ca1-image.png)
+<img src="https://github.com/user-attachments/assets/04dad4bf-f14e-4c49-bee8-feee51f390c3" width="364" alt="Casper: ping 8.8.8.8 dan apt-get update gagal">
 
-### 2.2 Unit-00 (`192.238.4.68`) — koneksi ke TCP 5000 Casper gagal
+#### 2.2 Unit-00 (`192.238.4.68`) — koneksi ke TCP 5000 Casper gagal
 
 ```bash
 nc -v -w 3 192.238.4.58 5000
@@ -963,11 +971,10 @@ nc -v -w 3 192.238.4.58 5000
 ```
 nc: connect to 192.238.4.58 port 5000 (tcp) timed out: Operation in progress
 ```
-<img width="364" height="187" alt="Screenshot 2026-11-25 at 08 33 26" src="https://github.com/user-attachments/assets/73ce4ace-f8fd-4514-b5e4-111521b5df3a" />
 
-![Unit-00: nc ke Casper port 5000 timed out](7fee2332-image.png)
+<img src="https://github.com/user-attachments/assets/73ce4ace-f8fd-4514-b5e4-111521b5df3a" width="364" alt="Unit-00: nc ke Casper port 5000 timed out">
 
-### 2.3 Lilith (`192.238.4.74`) — ping masuk ke Casper tetap ditolak
+#### 2.3 Lilith (`192.238.4.74`) — ping masuk ke Casper tetap ditolak
 
 ```bash
 ping -c 3 -W 1 192.238.4.58
@@ -978,15 +985,14 @@ ping -c 3 -W 1 192.238.4.58
 ```
 3 packets transmitted, 0 received, 100% packet loss, time 2310ms
 ```
-<img width="365" height="231" alt="Screenshot 2026-11-25 at 08 34 08" src="https://github.com/user-attachments/assets/7b8827d9-eafd-45dc-bc41-741170b64772" />
 
-![Lilith: ping ke Casper 100% packet loss (sebelum perbaikan)](9874c865-image.png)
+<img src="https://github.com/user-attachments/assets/7b8827d9-eafd-45dc-bc41-741170b64772" width="365" alt="Lilith: ping ke Casper 100% packet loss (sebelum perbaikan)">
 
 Hasil ini sudah sesuai dengan tujuan hardening: ping ke Casper memang harus ditolak.
 
 ---
 
-## 3. Diagnosis di Magi-Casper
+### 3. Diagnosis di Magi-Casper
 
 ```bash
 iptables -S
@@ -1021,13 +1027,12 @@ Chain OUTPUT (policy ACCEPT 10 packets, 632 bytes)
 LISTEN 0 1  0.0.0.0:5000  0.0.0.0:*  users:(("nc.traditional",pid=452,fd=3))
 nameserver 8.8.8.8
 ```
-<img width="366" height="361" alt="Screenshot 2026-11-25 at 08 37 32" src="https://github.com/user-attachments/assets/ebca340c-ce30-4bcd-b0b5-18a1a90d8f34" />
 
-![Output diagnosis iptables, ss, dan resolv.conf di Magi-Casper](19f2e98f-image.png)
+<img src="https://github.com/user-attachments/assets/ebca340c-ce30-4bcd-b0b5-18a1a90d8f34" width="366" alt="Output diagnosis iptables, ss, dan resolv.conf di Magi-Casper">
 
 ---
 
-## 4. Analisis Penyebab Kerusakan
+### 4. Analisis Penyebab Kerusakan
 
 | No | Penyebab | Dampak |
 |----|----------|--------|
@@ -1038,7 +1043,7 @@ nameserver 8.8.8.8
 
 ---
 
-## 5. Perbaikan Permanen di Magi-Casper
+### 5. Perbaikan Permanen di Magi-Casper
 
 Blok firewall pada `/root/casper.sh` diganti dengan konfigurasi hardening yang benar: policy `INPUT` tetap `DROP`, ping masuk tetap ditolak, tetapi paket balasan dan TCP 5000 diizinkan. Perintah `sed` menghapus blok Soal 11 dan Soal 12 lama agar tidak terduplikasi, sedangkan `iptables -F` membersihkan rule rusak (termasuk blokir DNS di `OUTPUT`).
 
@@ -1070,9 +1075,8 @@ EOF
 
 bash /root/casper.sh
 ```
-<img width="363" height="243" alt="Screenshot 2026-11-25 at 08 42 06" src="https://github.com/user-attachments/assets/fd9b5a7b-a794-4738-adab-077adc6ee88e" />
 
-![Menjalankan perbaikan permanen di Magi-Casper](d628fa42-image.png)
+<img src="https://github.com/user-attachments/assets/fd9b5a7b-a794-4738-adab-077adc6ee88e" width="363" alt="Menjalankan perbaikan permanen di Magi-Casper">
 
 **Penjelasan rule:**
 
@@ -1088,9 +1092,9 @@ bash /root/casper.sh
 
 ---
 
-## 6. Verifikasi dan Bukti Perbaikan
+### 6. Verifikasi dan Bukti Perbaikan
 
-### 6.1 Magi-Casper — rule firewall, ping `8.8.8.8`, dan `apt-get update`
+#### 6.1 Magi-Casper — rule firewall, ping `8.8.8.8`, dan `apt-get update`
 
 ```bash
 iptables -S
@@ -1122,11 +1126,10 @@ Hit:2 http://deb.debian.org/debian trixie-updates InRelease
 Hit:3 http://deb.debian.org/debian-security trixie-security InRelease
 Reading package lists... Done
 ```
-<img width="364" height="200" alt="Screenshot 2026-11-25 at 08 42 23" src="https://github.com/user-attachments/assets/ce7618bd-3104-481d-991b-c8e6710974fc" />
 
-![Casper: iptables -S, ping 8.8.8.8, dan apt-get update berhasil](7584a08d-image.png)
+<img src="https://github.com/user-attachments/assets/ce7618bd-3104-481d-991b-c8e6710974fc" width="364" alt="Casper: iptables -S, ping 8.8.8.8, dan apt-get update berhasil">
 
-### 6.2 Unit-00 (`192.238.4.68`) — koneksi ke Casper TCP 5000
+#### 6.2 Unit-00 (`192.238.4.68`) — koneksi ke Casper TCP 5000
 
 ```bash
 echo "tes koneksi dari Unit-00" | nc -v -w 2 192.238.4.58 5000
@@ -1137,11 +1140,10 @@ echo "tes koneksi dari Unit-00" | nc -v -w 2 192.238.4.58 5000
 ```
 Connection to 192.238.4.58 5000 port [tcp/*] succeeded!
 ```
-<img width="362" height="28" alt="Screenshot 2026-11-25 at 08 42 45" src="https://github.com/user-attachments/assets/a0e9ef28-ad66-4dc4-8bf6-5fa1cdec8446" />
 
-![Unit-00: nc ke Casper port 5000 berhasil](30554f8d-image.png)
+<img src="https://github.com/user-attachments/assets/a0e9ef28-ad66-4dc4-8bf6-5fa1cdec8446" width="362" alt="Unit-00: nc ke Casper port 5000 berhasil">
 
-### 6.3 Lilith (`192.238.4.74`) — ping ke Casper tetap ditolak
+#### 6.3 Lilith (`192.238.4.74`) — ping ke Casper tetap ditolak
 
 ```bash
 ping -c 3 -W 1 192.238.4.58
@@ -1152,13 +1154,12 @@ ping -c 3 -W 1 192.238.4.58
 ```
 3 packets transmitted, 0 received, 100% packet loss, time 2268ms
 ```
-<img width="363" height="49" alt="Screenshot 2026-11-25 at 08 42 56" src="https://github.com/user-attachments/assets/8524cef8-82aa-4f5a-bd38-1fb206613e29" />
 
-![Lilith: ping ke Casper tetap 100% packet loss (setelah perbaikan)](60de5d15-image.png)
+<img src="https://github.com/user-attachments/assets/8524cef8-82aa-4f5a-bd38-1fb206613e29" width="363" alt="Lilith: ping ke Casper tetap 100% packet loss (setelah perbaikan)">
 
 ---
 
-## 7. Perbandingan Sebelum dan Sesudah
+### 7. Perbandingan Sebelum dan Sesudah
 
 | Pengujian | Sebelum | Sesudah | Sesuai Soal |
 |-----------|---------|---------|:-----------:|
@@ -1170,22 +1171,25 @@ ping -c 3 -W 1 192.238.4.58
 
 ---
 
-## 8. Kesimpulan
+### 8. Kesimpulan
 
 Kerusakan disebabkan oleh tiga kesalahan konfigurasi: tidak adanya rule `ESTABLISHED,RELATED` pada policy `INPUT DROP`, adanya blokir DNS keluar (UDP port 53), dan tidak adanya izin untuk TCP 5000. Rule ICMP yang terlalu luas juga ikut memblokir balasan ping. Setelah blok firewall diganti dengan konfigurasi yang benar, Casper kembali bisa ping keluar dan `apt-get update`, Unit-00 dapat terhubung ke TCP 5000, dan ping masuk ke Casper tetap ditolak. Policy `INPUT` tetap `DROP`, sehingga tujuan hardening tidak dibatalkan.
 
-# Laporan Pengerjaan Soal 13 — Brankas Balthasar
+---
+
+## Soal 13: Brankas Balthasar
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3) — Magi-Balthasar, Magi-Casper, Magi-Melchior, Unit-01, Lilith
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Brankas Balthasar:** Balthasar menyimpan seluruh data Geofront, tapi terlalu banyak yang bisa mengetuk pintunya, termasuk tetangga satu switch. **Hanya Casper dan semua Pilot** yang boleh menyambung ke **TCP 5000 dan 5001**. Node lain, termasuk yang satu switch, harus **langsung ditolak** di kedua port itu, bukan dibiarkan menggantung sampai timeout. Lalu lintas lain tidak boleh terganggu. Balthasar tetap harus bisa ping `8.8.8.8` dan menerima balasannya. Buktikan `nc` ke port 5000 dan 5001: **Unit-01 berhasil, Lilith dan Melchior ditolak seketika**.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Pendekatan |
 |----|-----------|------------|
@@ -1194,7 +1198,7 @@ Kerusakan disebabkan oleh tiga kesalahan konfigurasi: tidak adanya rule `ESTABLI
 | 3 | Lalu lintas lain tidak terganggu | Policy `INPUT`, `FORWARD`, `OUTPUT` tetap `ACCEPT`; rule hanya menargetkan TCP 5000/5001 |
 | 4 | Balthasar tetap bisa ping `8.8.8.8` | Tidak ada rule yang menyentuh ICMP |
 
-### Alamat IP
+#### Alamat IP
 
 | Perangkat | IP | Peran pada Soal 13 |
 |-----------|----|--------------------|
@@ -1209,9 +1213,9 @@ Kerusakan disebabkan oleh tiga kesalahan konfigurasi: tidak adanya rule `ESTABLI
 
 ---
 
-## 2. Langkah Pengerjaan di Magi-Balthasar
+### 2. Langkah Pengerjaan di Magi-Balthasar
 
-### 2.1 Memeriksa skrip Soal 7 dan menambahkan blok firewall Soal 13
+#### 2.1 Memeriksa skrip Soal 7 dan menambahkan blok firewall Soal 13
 
 Skrip `/root/balthasar.sh` dari Soal 7 diperiksa terlebih dahulu. Blok Soal 13 lalu ditambahkan secara idempoten: `sed` menghapus blok Soal 13 lama (jika ada) agar tidak terduplikasi, kemudian blok baru ditulis di bagian paling bawah.
 
@@ -1244,6 +1248,7 @@ EOF
 # Terapkan konfigurasi
 bash /root/balthasar.sh
 ```
+
 **Penjelasan:**
 
 | Bagian | Fungsi |
@@ -1261,9 +1266,9 @@ Rule `ACCEPT` untuk kelima IP harus berada **di atas** rule `REJECT`. iptables m
 
 ---
 
-## 3. Pengujian dan Bukti
+### 3. Pengujian dan Bukti
 
-### 3.1 Magi-Balthasar (`192.238.4.59`) — rule iptables, listener, dan ping ke internet
+#### 3.1 Magi-Balthasar (`192.238.4.59`) — rule iptables, listener, dan ping ke internet
 
 ```bash
 iptables -S
@@ -1301,16 +1306,15 @@ PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
 --- 8.8.8.8 ping statistics ---
 3 packets transmitted, 3 received, 0% packet loss, time 2218ms
 ```
-<img width="360" height="294" alt="Screenshot 2026-11-25 at 09 25 55" src="https://github.com/user-attachments/assets/2b44377d-9d4c-4bda-bc93-00b487088ffb" />
 
-![Balthasar: iptables -S, listener port 5000/5001, dan ping 8.8.8.8](b123b14b-image.png)
+<img src="https://github.com/user-attachments/assets/2b44377d-9d4c-4bda-bc93-00b487088ffb" width="360" alt="Balthasar: iptables -S, listener port 5000/5001, dan ping 8.8.8.8">
 
 **Analisis:**
 - Rule `ACCEPT` untuk kelima IP berada di atas rule `REJECT --reject-with tcp-reset` pada kedua port.
 - Port 5000 dan 5001 berstatus `LISTEN` (proses `nc.traditional`), sehingga layanan tetap hidup.
 - `ping 8.8.8.8` berhasil 0% packet loss, jadi lalu lintas lain tidak terganggu.
 
-### 3.2 Unit-01 (`192.238.4.66`) — koneksi ke TCP 5000 & 5001 (harus berhasil)
+#### 3.2 Unit-01 (`192.238.4.66`) — koneksi ke TCP 5000 & 5001 (harus berhasil)
 
 ```bash
 echo "halo dari Unit-01 (5000)" | nc -v -w 2 192.238.4.59 5000
@@ -1323,11 +1327,10 @@ echo "halo dari Unit-01 (5001)" | nc -v -w 2 192.238.4.59 5001
 Connection to 192.238.4.59 5000 port [tcp/*] succeeded!
 Connection to 192.238.4.59 5001 port [tcp/*] succeeded!
 ```
-<img width="240" height="153" alt="Screenshot 2026-11-25 at 09 26 42" src="https://github.com/user-attachments/assets/6039229c-04e2-44f5-9c84-a31ea6ca4de5" />
 
-![Unit-01: nc ke Balthasar port 5000 dan 5001 berhasil](63fd7521-image.png)
+<img src="https://github.com/user-attachments/assets/6039229c-04e2-44f5-9c84-a31ea6ca4de5" width="240" alt="Unit-01: nc ke Balthasar port 5000 dan 5001 berhasil">
 
-### 3.3 Lilith (`192.238.4.74`) — koneksi lintas subnet (harus langsung ditolak)
+#### 3.3 Lilith (`192.238.4.74`) — koneksi lintas subnet (harus langsung ditolak)
 
 ```bash
 nc -v 192.238.4.59 5000
@@ -1340,11 +1343,10 @@ nc -v 192.238.4.59 5001
 nc: connect to 192.238.4.59 port 5000 (tcp) failed: Connection refused
 nc: connect to 192.238.4.59 port 5001 (tcp) failed: Connection refused
 ```
-<img width="240" height="151" alt="Screenshot 2026-11-25 at 09 27 21" src="https://github.com/user-attachments/assets/faecaea6-34be-415d-ab6f-35538cb85dff" />
 
-![Lilith: nc ke Balthasar ditolak seketika (Connection refused)](f5db9170-image.png)
+<img src="https://github.com/user-attachments/assets/faecaea6-34be-415d-ab6f-35538cb85dff" width="240" alt="Lilith: nc ke Balthasar ditolak seketika (Connection refused)">
 
-### 3.4 Magi-Melchior (`192.238.4.60`) — tetangga satu switch (harus langsung ditolak)
+#### 3.4 Magi-Melchior (`192.238.4.60`) — tetangga satu switch (harus langsung ditolak)
 
 ```bash
 nc -v 192.238.4.59 5000
@@ -1359,13 +1361,12 @@ nc -v 192.238.4.59 5001
 192.238.4.59: inverse host lookup failed: Unknown host
 (UNKNOWN) [192.238.4.59] 5001 (?) : Connection refused
 ```
-<img width="242" height="70" alt="Screenshot 2026-11-25 at 09 28 10" src="https://github.com/user-attachments/assets/c097dfb1-d8eb-4b3a-ae52-52c3212075ee" />
 
-![Melchior: nc ke Balthasar ditolak seketika (Connection refused)](80e4fe83-image.png)
+<img src="https://github.com/user-attachments/assets/c097dfb1-d8eb-4b3a-ae52-52c3212075ee" width="242" alt="Melchior: nc ke Balthasar ditolak seketika (Connection refused)">
 
 > Pesan `inverse host lookup failed: Unknown host` hanya berasal dari `nc` yang mencoba reverse DNS pada IP tujuan. Pesan ini tidak berkaitan dengan firewall; bagian pentingnya adalah `Connection refused`.
 
-### 3.5 Magi-Balthasar — log pesan masuk dan counter paket
+#### 3.5 Magi-Balthasar — log pesan masuk dan counter paket
 
 ```bash
 cat /tmp/balthasar_5000.log
@@ -1394,9 +1395,8 @@ Chain INPUT (policy ACCEPT 3 packets, 252 bytes)
     0     0 ACCEPT  tcp  --  *   *    192.238.3.130  0.0.0.0/0   tcp dpt:5001
     2   120 REJECT  tcp  --  *   *    0.0.0.0/0      0.0.0.0/0   tcp dpt:5001 reject-with tcp-reset
 ```
-<img width="240" height="208" alt="Screenshot 2026-11-25 at 09 29 08" src="https://github.com/user-attachments/assets/11164f2f-ad1e-40a2-bdee-4b01133d6f41" />
 
-![Balthasar: log pesan dari Unit-01 dan counter iptables](195a23b8-image.png)
+<img src="https://github.com/user-attachments/assets/11164f2f-ad1e-40a2-bdee-4b01133d6f41" width="240" alt="Balthasar: log pesan dari Unit-01 dan counter iptables">
 
 **Analisis:**
 - Kedua file log berisi pesan dari Unit-01, jadi koneksi dari Pilot benar-benar diterima oleh listener.
@@ -1405,7 +1405,7 @@ Chain INPUT (policy ACCEPT 3 packets, 252 bytes)
 
 ---
 
-## 4. Hasil dan Pembahasan
+### 4. Hasil dan Pembahasan
 
 | Skenario | Port | Hasil | Sesuai Soal |
 |----------|------|-------|:-----------:|
@@ -1424,18 +1424,21 @@ Chain INPUT (policy ACCEPT 3 packets, 252 bytes)
 
 ---
 
-## 5. Kesimpulan
+### 5. Kesimpulan
 
 Dengan menambahkan blok firewall Soal 13 pada `/root/balthasar.sh` berupa rule `ACCEPT` per IP untuk Casper dan seluruh Pilot, diikuti rule `REJECT --reject-with tcp-reset` pada TCP 5000 dan 5001, akses ke Balthasar berhasil dibatasi. Unit-01 dapat menyambung, sedangkan Lilith dan Melchior langsung ditolak. Policy default `ACCEPT` menjaga lalu lintas lain, termasuk ping ke `8.8.8.8`, tetap berjalan. Seluruh persyaratan Soal 13 terpenuhi.
 
-# Laporan Pengerjaan Soal 14 — Jam Kunjungan Sang Pinguin
+---
+
+## Soal 14: Jam Kunjungan Sang Pinguin
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3) — Pen-Pen, Unit-01, Lilith, Spy
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Jam kunjungan sang pinguin:** Pen-Pen, pinguin Misato, menyimpan sesuatu yang bikin banyak orang penasaran. Ia hanya boleh dihubungi sesuai jadwal di bawah. Jadwal berlaku untuk **ping dan TCP 80** ke Pen-Pen, dari mana pun asalnya. **Jam komputer tidak boleh diubah.**
 
@@ -1448,7 +1451,7 @@ Dengan menambahkan blok firewall Soal 13 pada `/root/balthasar.sh` berupa rule `
 
 > Simpan jadwal sebagai variabel di awal script Pen-Pen, bernama `PILOT_START`, `PILOT_STOP`, `PILOT_DAYS`, `STAF_START`, dan `STAF_STOP`. Untuk uji, ubah variabel itu sampai jadwalnya **cocok** dengan jam sekarang, lalu sampai **tidak cocok**. Ingat, iptables membaca **jam UTC, 7 jam lebih lambat dari WIB**. Tunjukkan hasil ping dari Unit-01, Lilith, dan Spy pada kedua kondisi.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Pendekatan |
 |----|-----------|------------|
@@ -1458,14 +1461,14 @@ Dengan menambahkan blok firewall Soal 13 pada `/root/balthasar.sh` berupa rule `
 | 4 | Jadwal dalam UTC | WIB dikurangi 7 jam |
 | 5 | Lainnya bebas | Node yang tidak terdaftar tidak cocok rule apa pun, kembali ke policy `ACCEPT` |
 
-### Konversi jadwal WIB ke UTC
+#### Konversi jadwal WIB ke UTC
 
 | Kelompok | WIB | UTC (`--timestart` / `--timestop`) | Hari |
 |----------|-----|------------------------------------|------|
 | Pilot | 08.00 – 16.00 | `01:00` – `09:00` | `Mon,Tue,Wed,Thu,Fri` |
 | Staf Geofront | 17.00 – 23.00 | `10:00` – `16:00` | Setiap hari |
 
-### Alamat IP
+#### Alamat IP
 
 | Perangkat / Kelompok | IP | Peran |
 |----------------------|----|-------|
@@ -1476,7 +1479,7 @@ Dengan menambahkan blok firewall Soal 13 pada `/root/balthasar.sh` berupa rule `
 
 ---
 
-## 2. Langkah 1 — Memasang Script Jadwal di `/root/penpen.sh`
+### 2. Langkah 1 — Memasang Script Jadwal di `/root/penpen.sh`
 
 Script `/root/penpen.sh` ditulis ulang dengan kelima variabel jadwal di baris paling atas. Konfigurasi IP (`/root/ip.sh`) dan listener port 80 dari Soal 8 tetap dipertahankan. Aturan firewall dibuat dalam chain khusus `PENPEN_ACL`.
 
@@ -1531,9 +1534,7 @@ chmod +x /root/penpen.sh
 bash /root/penpen.sh
 ```
 
-<!-- CEK: pada screenshot, baris rule Pilot/Staf terpotong di layar. Bagian "--weekdays $PILOT_DAYS -j ACCEPT" dan "-j ACCEPT" pada rule Staf direkonstruksi dari logika soal. Samakan dengan script aslimu bila berbeda. -->
-
-![Script jadwal pada Pen-Pen](8aa22f60-image.png)
+<!-- Screenshot belum diunggah: Script jadwal pada Pen-Pen -->
 
 **Penjelasan:**
 
@@ -1551,9 +1552,9 @@ bash /root/penpen.sh
 
 ---
 
-## 3. Langkah 2 — Uji Kondisi 1: Jadwal **Cocok** dengan Jam Sekarang
+### 3. Langkah 2 — Uji Kondisi 1: Jadwal **Cocok** dengan Jam Sekarang
 
-### 3.1 Cek jam UTC dan hari saat ini di Pen-Pen
+#### 3.1 Cek jam UTC dan hari saat ini di Pen-Pen
 
 ```bash
 date -u
@@ -1565,11 +1566,9 @@ date -u
 Wed Nov 25 13:45:22 UTC 2026
 ```
 
-![date -u di Pen-Pen](c327dc3f-image.png)
+<!-- Screenshot belum diunggah: date -u di Pen-Pen -->
 
-<!-- CEK: date -u menunjukkan 13:45 UTC, sedangkan rentang yang diset di bawah adalah 08:00-11:00 (tidak mencakup 13:45). Pastikan rentang yang kamu pakai saat uji kondisi 1 benar-benar mencakup jam UTC container (mis. 12:00-15:00), atau jalankan ulang date -u tepat sebelum pengujian dan ganti nilai di bawah. -->
-
-### 3.2 Mengubah variabel agar cocok dengan jam UTC sekarang
+#### 3.2 Mengubah variabel agar cocok dengan jam UTC sekarang
 
 Variabel Pilot dan Staf diubah ke rentang yang mencakup jam UTC container. `PILOT_DAYS` ditambah `Sat,Sun` agar hari saat pengujian pasti termasuk.
 
@@ -1598,9 +1597,9 @@ STAF_STOP="11:00"
 [ -f /root/ip.sh ] && sh /root/ip.sh
 ```
 
-![Mengubah variabel jadwal agar cocok](79f4533c-image.png)
+<!-- Screenshot belum diunggah: Mengubah variabel jadwal agar cocok -->
 
-### 3.3 Pengujian dari tiga node (harus berhasil, berhasil, gagal)
+#### 3.3 Pengujian dari tiga node (harus berhasil, berhasil, gagal)
 
 **Unit-01 (`192.238.4.66`, Pilot) — harus berhasil:**
 
@@ -1615,7 +1614,7 @@ Connection to 192.238.3.194 80 port [tcp/http] succeeded!
 Welcome to Pen-Pen
 ```
 
-![Unit-01: ping dan nc ke Pen-Pen berhasil](cb07a5d4-image.png)
+<!-- Screenshot belum diunggah: Unit-01: ping dan nc ke Pen-Pen berhasil -->
 
 **Lilith (`192.238.4.74`, Staf) — harus berhasil:**
 
@@ -1630,7 +1629,7 @@ Connection to 192.238.3.194 80 port [tcp/http] succeeded!
 Welcome to Pen-Pen
 ```
 
-![Lilith: ping dan nc ke Pen-Pen berhasil](cf636225-image.png)
+<!-- Screenshot belum diunggah: Lilith: ping dan nc ke Pen-Pen berhasil -->
 
 **Spy (`192.238.4.102`, Terduga Dummy System) — harus gagal (selalu ditolak):**
 
@@ -1642,13 +1641,13 @@ ping -c 3 -W 1 192.238.3.194
 3 packets transmitted, 0 received, 100% packet loss, time 2297ms
 ```
 
-![Spy: ping ke Pen-Pen gagal (kondisi 1)](abb9836f-image.png)
+<!-- Screenshot belum diunggah: Spy: ping ke Pen-Pen gagal (kondisi 1) -->
 
 ---
 
-## 4. Langkah 3 — Uji Kondisi 2: Jadwal **Tidak Cocok** dengan Jam Sekarang
+### 4. Langkah 3 — Uji Kondisi 2: Jadwal **Tidak Cocok** dengan Jam Sekarang
 
-### 4.1 Menggeser variabel ke jam di luar jam UTC sekarang
+#### 4.1 Menggeser variabel ke jam di luar jam UTC sekarang
 
 ```bash
 sed -i 's/^PILOT_START=.*/PILOT_START="13:00"/' /root/penpen.sh
@@ -1659,9 +1658,7 @@ bash /root/penpen.sh
 head -n 10 /root/penpen.sh
 ```
 
-<!-- CEK: rentang 13:00-15:00 adalah contoh dari petunjuk. Karena date -u di screenshotmu 13:45, rentang ini justru MENCAKUP jam sekarang. Pastikan nilai yang kamu pakai benar-benar di luar jam UTC container (mis. 01:00-03:00), lalu samakan di sini. -->
-
-### 4.2 Pengujian ulang dari tiga node
+#### 4.2 Pengujian ulang dari tiga node
 
 **Unit-01 (`192.238.4.66`) — sekarang harus gagal:**
 
@@ -1681,7 +1678,7 @@ ping -c 3 -W 1 192.238.3.194
 3 packets transmitted, 0 received, 100% packet loss, time 2307ms
 ```
 
-![Lilith: ping ke Pen-Pen gagal (kondisi 2)](ad8f518e-image.png)
+<!-- Screenshot belum diunggah: Lilith: ping ke Pen-Pen gagal (kondisi 2) -->
 
 **Spy (`192.238.4.102`) — tetap gagal:**
 
@@ -1693,11 +1690,11 @@ ping -c 3 -W 1 192.238.3.194
 3 packets transmitted, 0 received, 100% packet loss, time 2313ms
 ```
 
-![Spy: ping ke Pen-Pen tetap gagal (kondisi 2)](9c3e01b3-image.png)
+<!-- Screenshot belum diunggah: Spy: ping ke Pen-Pen tetap gagal (kondisi 2) -->
 
 ---
 
-## 5. Langkah 4 — Mengembalikan ke Jadwal Asli Soal
+### 5. Langkah 4 — Mengembalikan ke Jadwal Asli Soal
 
 Setelah bukti kedua kondisi diambil, kelima variabel dikembalikan ke nilai asli sesuai spesifikasi soal agar konfigurasi akhir Pen-Pen tetap valid.
 
@@ -1717,11 +1714,11 @@ Setelah dikembalikan, Spy tetap gagal karena kelompok Dummy System ditolak di lu
 3 packets transmitted, 0 received, 100% packet loss, time 2297ms
 ```
 
-![Spy: ping tetap gagal setelah jadwal dikembalikan](0e73df0f-image.png)
+<!-- Screenshot belum diunggah: Spy: ping tetap gagal setelah jadwal dikembalikan -->
 
 ---
 
-## 6. Hasil dan Pembahasan
+### 6. Hasil dan Pembahasan
 
 | Node | Kelompok | Kondisi 1 (jadwal cocok) | Kondisi 2 (jadwal tidak cocok) | Sesuai Soal |
 |------|----------|--------------------------|--------------------------------|:-----------:|
@@ -1740,23 +1737,25 @@ Setelah dikembalikan, Spy tetap gagal karena kelompok Dummy System ditolak di lu
 
 ---
 
-## 7. Kesimpulan
+### 7. Kesimpulan
 
 Dengan menyimpan jadwal sebagai variabel (`PILOT_START`, `PILOT_STOP`, `PILOT_DAYS`, `STAF_START`, `STAF_STOP`) di awal `/root/penpen.sh` dan menerapkan rule `iptables -m time` pada chain `PENPEN_ACL`, akses ping dan TCP 80 ke Pen-Pen dapat dibatasi sesuai jadwal tanpa mengubah jam komputer. Unit-01 (Pilot) dan Lilith (Staf) hanya berhasil saat jadwal cocok, sedangkan Spy (Terduga Dummy System) selalu ditolak. Setelah pengujian, variabel dikembalikan ke nilai asli sehingga konfigurasi akhir sesuai spesifikasi soal.
 
+---
 
-# Laporan Pengerjaan Soal 15 — Banjir Ping di Pusat Komando
+## Soal 15: Banjir Ping di Pusat Komando
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3) — Tokyo3-Core, Lilith
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Banjir ping di pusat komando:** Instrumentality makin dekat, dan semua orang berebut mem-ping Tokyo3-Core. Banjir ping bisa melumpuhkannya. Batasi Tokyo3-Core agar hanya menjawab **maksimal 5 ping per detik**, dan buang kelebihannya. Aturan ini **tidak boleh mengganggu ping di bawah batas**. Aturan ini juga **tidak boleh membatasi ping yang dikirim Tokyo3-Core sendiri**. Pastikan rule benar-benar mengenai paket yang dituju. Periksa urutan rule dan jenis paketnya. Buktikan ping rapat dari Lilith, misalnya `ping -i 0.1 -c50`, sebagian hilang, dan tunjukkan counter rule pembuangan naik. Buktikan ping biasa semuanya berhasil, dengan jeda minimal 3 detik di antaranya.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Pendekatan |
 |----|-----------|------------|
@@ -1766,7 +1765,7 @@ Dengan menyimpan jadwal sebagai variabel (`PILOT_START`, `PILOT_STOP`, `PILOT_DA
 | 4 | Ping keluar dari Tokyo3-Core tidak dibatasi | Rule berada di chain `INPUT` dan hanya mencocokkan `echo-request` (type 8) |
 | 5 | Rule harus mengenai paket yang tepat | Pencocokan spesifik: `-p icmp --icmp-type echo-request` |
 
-### Alamat IP
+#### Alamat IP
 
 | Perangkat | IP |
 |-----------|----|
@@ -1775,7 +1774,7 @@ Dengan menyimpan jadwal sebagai variabel (`PILOT_START`, `PILOT_STOP`, `PILOT_DA
 
 ---
 
-## 2. Langkah 1 — Menambahkan Aturan Rate-Limit ke `/root/tokyo3.sh`
+### 2. Langkah 1 — Menambahkan Aturan Rate-Limit ke `/root/tokyo3.sh`
 
 Blok firewall Soal 15 ditambahkan secara idempoten ke bagian bawah `/root/tokyo3.sh`, tanpa menghapus listener port `80` dan `8080` dari Soal 8. Perintah `sed` menghapus blok Soal 15 lama (jika ada) agar tidak terduplikasi.
 
@@ -1799,9 +1798,8 @@ EOF
 
 bash /root/tokyo3.sh
 ```
-<img width="240" height="124" alt="Screenshot 2026-11-25 at 17 26 59" src="https://github.com/user-attachments/assets/512d155a-0dbf-42ac-8102-38e0e3e0d16a" />
 
-![Menambahkan blok firewall Soal 15 di Tokyo3-Core](8fb2ead8-image.png)
+<img src="https://github.com/user-attachments/assets/512d155a-0dbf-42ac-8102-38e0e3e0d16a" width="240" alt="Menambahkan blok firewall Soal 15 di Tokyo3-Core">
 
 **Penjelasan:**
 
@@ -1820,9 +1818,9 @@ Ping yang dikirim Tokyo3-Core lewat chain `OUTPUT` (tidak disentuh rule), dan ba
 
 ---
 
-## 3. Langkah 2 — Pengujian dan Bukti
+### 3. Langkah 2 — Pengujian dan Bukti
 
-### 3.1 Tokyo3-Core (`192.238.4.106`) — cek urutan rule dan counter awal
+#### 3.1 Tokyo3-Core (`192.238.4.106`) — cek urutan rule dan counter awal
 
 ```bash
 iptables -S
@@ -1843,13 +1841,12 @@ Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
     0     0 ACCEPT  icmp --  *   *    0.0.0.0/0  0.0.0.0/0   icmptype 8 limit: avg 5/sec burst 5
     0     0 DROP    icmp --  *   *    0.0.0.0/0  0.0.0.0/0   icmptype 8
 ```
-<img width="479" height="196" alt="Screenshot 2026-11-25 at 17 28 14" src="https://github.com/user-attachments/assets/4321a724-6396-4524-80fb-284fbffe2fab" />
 
-![Tokyo3-Core: urutan rule dan counter awal](ae5198af-image.png)
+<img src="https://github.com/user-attachments/assets/4321a724-6396-4524-80fb-284fbffe2fab" width="479" alt="Tokyo3-Core: urutan rule dan counter awal">
 
 **Analisis:** Rule `limit: avg 5/sec burst 5` berada di baris pertama, diikuti rule `DROP icmptype 8` di baris kedua. Kedua counter masih `0`, menandakan belum ada paket sebelum pengujian.
 
-### 3.2 Lilith (`192.238.4.74`) — banjir ping rapat (0,1 detik, 50 paket)
+#### 3.2 Lilith (`192.238.4.74`) — banjir ping rapat (0,1 detik, 50 paket)
 
 ```bash
 ping -i 0.1 -c 50 192.238.4.106
@@ -1864,11 +1861,10 @@ rtt min/avg/max/mdev = 0.619/1.071/1.980/0.307 ms
 ```
 
 Balasan terlihat berurutan pada `icmp_seq=1` sampai `9`, lalu mulai selang-seling (`11, 13, 15, ...`) karena kelebihan paket dibuang.
-<img width="482" height="472" alt="Screenshot 2026-11-25 at 17 28 57" src="https://github.com/user-attachments/assets/16aac166-8639-4ee2-b1e4-d85269dd9772" />
 
-![Lilith: ping rapat 50 paket, 40% packet loss](59645109-image.png)
+<img src="https://github.com/user-attachments/assets/16aac166-8639-4ee2-b1e4-d85269dd9772" width="482" alt="Lilith: ping rapat 50 paket, 40% packet loss">
 
-### 3.3 Tokyo3-Core — kenaikan counter rule pembuangan
+#### 3.3 Tokyo3-Core — kenaikan counter rule pembuangan
 
 ```bash
 iptables -L INPUT -n -v
@@ -1882,9 +1878,8 @@ Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
    30  2520 ACCEPT  icmp --  *   *    0.0.0.0/0  0.0.0.0/0   icmptype 8 limit: avg 5/sec burst 5
    20  1680 DROP    icmp --  *   *    0.0.0.0/0  0.0.0.0/0   icmptype 8
 ```
-<img width="480" height="114" alt="Screenshot 2026-11-25 at 17 30 51" src="https://github.com/user-attachments/assets/3215e885-146d-4a68-af3d-87344e0a7e2f" />
 
-![Tokyo3-Core: counter ACCEPT 30 paket dan DROP 20 paket](c2776680-image.png)
+<img src="https://github.com/user-attachments/assets/3215e885-146d-4a68-af3d-87344e0a7e2f" width="480" alt="Tokyo3-Core: counter ACCEPT 30 paket dan DROP 20 paket">
 
 **Analisis:**
 - Rule `ACCEPT` mencatat **30 paket (2520 byte)** dan rule `DROP` mencatat **20 paket (1680 byte)**.
@@ -1892,7 +1887,7 @@ Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
 - 30 paket yang diterima cocok dengan hasil ping Lilith (`30 received`), sedangkan 20 paket sisanya dibuang. Ini membuktikan kelebihan ping benar-benar ditangkap rule `DROP`.
 - Tiap paket ping berukuran 84 byte: 30 × 84 = 2520 byte dan 20 × 84 = 1680 byte.
 
-### 3.4 Lilith — ping biasa dengan jeda minimal 3 detik
+#### 3.4 Lilith — ping biasa dengan jeda minimal 3 detik
 
 ```bash
 ping -i 3 -c 5 192.238.4.106
@@ -1903,11 +1898,10 @@ ping -i 3 -c 5 192.238.4.106
 ```
 5 packets transmitted, 5 received, 0% packet loss, time 13412ms
 ```
-<img width="387" height="126" alt="Screenshot 2026-11-25 at 17 31 48" src="https://github.com/user-attachments/assets/2f8273c2-bd82-4e08-9254-a7af90aff301" />
 
-![Lilith: ping biasa jeda 3 detik, 0% packet loss](a3017bbd-image.png)
+<img src="https://github.com/user-attachments/assets/2f8273c2-bd82-4e08-9254-a7af90aff301" width="387" alt="Lilith: ping biasa jeda 3 detik, 0% packet loss">
 
-### 3.5 Tokyo3-Core — ping keluar tidak ikut terbatasi
+#### 3.5 Tokyo3-Core — ping keluar tidak ikut terbatasi
 
 ```bash
 ping -i 0.1 -c 15 192.238.4.75
@@ -1919,13 +1913,12 @@ ping -i 0.1 -c 15 192.238.4.75
 15 packets transmitted, 15 received, 0% packet loss, time 1412ms
 rtt min/avg/max/mdev = 0.847/1.240/1.786/0.298 ms
 ```
-<img width="360" height="216" alt="Screenshot 2026-11-27 at 10 09 06" src="https://github.com/user-attachments/assets/f65e3c2f-12c8-445a-bac2-e71b92e7da27" />
 
-![Tokyo3-Core: ping keluar rapat ke Lilith, 0% packet loss](b10b4cd6-image.png)
+<img src="https://github.com/user-attachments/assets/f65e3c2f-12c8-445a-bac2-e71b92e7da27" width="360" alt="Tokyo3-Core: ping keluar rapat ke Lilith, 0% packet loss">
 
 ---
 
-## 4. Hasil dan Pembahasan
+### 4. Hasil dan Pembahasan
 
 | Pengujian | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
 |-----------|-----------------------|--------------|:-----------:|
@@ -1944,22 +1937,25 @@ rtt min/avg/max/mdev = 0.847/1.240/1.786/0.298 ms
 
 ---
 
-## 5. Kesimpulan
+### 5. Kesimpulan
 
 Dengan menambahkan rule `iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 5/second --limit-burst 5 -j ACCEPT` diikuti rule `DROP` untuk `echo-request` pada `/root/tokyo3.sh`, Tokyo3-Core hanya menjawab maksimal 5 ping per detik dan membuang kelebihannya. Ping rapat dari Lilith sebagian hilang (40% loss) dengan counter `DROP` yang naik, ping biasa dengan jeda 3 detik semuanya berhasil, dan ping yang dikirim Tokyo3-Core sendiri tidak terbatasi. Seluruh persyaratan Soal 15 terpenuhi.
 
-# Laporan Pengerjaan Soal 16 — Pencuri yang Mencoba Setiap Pintu
+---
+
+## Soal 16: Pencuri yang Mencoba Setiap Pintu
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3) — Tokyo3-Core, Dummy-Plug (Switch-Lab)
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Pencuri yang mencoba setiap pintu:** dari Switch-Lab, Dummy-Plug mengetuk port sensitif Tokyo3-Core satu per satu seperti pencuri. Ritsuko ingin tahu setiap percobaannya, dan pintunya harus dibanting. Setiap koneksi TCP dari **Dummy-Plug** ke **port 22, 23, dan 3306** di Tokyo3-Core harus **dicatat di log** dengan prefix huruf besar `SCAN-NERV:`, lalu **ditolak seketika**. Port 80 dan 8080 tetap bisa diakses, dan klien lain tidak boleh terganggu. Buktikan `nc -w` dari Dummy-Plug ke port 22, 23, dan 3306 langsung ditolak, dan ke port 80 dan 8080 berhasil. Tunjukkan **counter rule pencatatan**, karena log kernel sering tidak terlihat di container.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Pendekatan |
 |----|-----------|------------|
@@ -1970,7 +1966,7 @@ Dengan menambahkan rule `iptables -A INPUT -p icmp --icmp-type echo-request -m l
 | 5 | Tidak merusak aturan Soal 15 | Aturan Soal 15 digabung ke blok yang sama dalam `/root/tokyo3.sh` |
 | 6 | Bukti pencatatan | Counter `pkts` pada rule `LOG` (`iptables -L INPUT -n -v`) |
 
-### Alamat IP
+#### Alamat IP
 
 | Perangkat | IP | Peran |
 |-----------|----|-------|
@@ -1979,7 +1975,7 @@ Dengan menambahkan rule `iptables -A INPUT -p icmp --icmp-type echo-request -m l
 
 ---
 
-## 2. Langkah 1 — Memperbarui `/root/tokyo3.sh` di Tokyo3-Core
+### 2. Langkah 1 — Memperbarui `/root/tokyo3.sh` di Tokyo3-Core
 
 Aturan Soal 15 (rate-limit ping) dan Soal 16 digabung dalam satu blok secara idempoten. Perintah `sed` menghapus blok Soal 15 lama beserta isi setelahnya agar tidak terduplikasi, lalu blok gabungan ditulis ulang di bagian bawah script. Ini penting agar aturan Soal 15 tetap berlaku.
 
@@ -2024,9 +2020,9 @@ bash /root/tokyo3.sh
 
 ---
 
-## 3. Langkah 2 — Pengujian dan Bukti
+### 3. Langkah 2 — Pengujian dan Bukti
 
-### 3.1 Tokyo3-Core (`192.238.4.106`) — cek rule awal sebelum scanning
+#### 3.1 Tokyo3-Core (`192.238.4.106`) — cek rule awal sebelum scanning
 
 ```bash
 iptables -S
@@ -2050,13 +2046,12 @@ iptables -L INPUT -n -v
 ```
 
 **Hasil (counter awal):** seluruh counter `pkts` dan `bytes` bernilai `0` (policy `ACCEPT 0 packets, 0 bytes`).
-<img width="482" height="437" alt="Screenshot 2026-11-25 at 17 40 12" src="https://github.com/user-attachments/assets/9b0e6c10-8a43-44d5-b885-c1374aae6874" />
 
-![Tokyo3-Core: rule awal dan counter 0 sebelum scanning](cfb476fc-image.png)
+<img src="https://github.com/user-attachments/assets/9b0e6c10-8a43-44d5-b885-c1374aae6874" width="482" alt="Tokyo3-Core: rule awal dan counter 0 sebelum scanning">
 
 **Analisis:** Aturan Soal 15 tetap ada di dua baris pertama, diikuti pasangan `LOG` dan `REJECT` untuk port 22, 23, dan 3306 (dengan `LOG` selalu tepat di atas `REJECT`). Semua counter masih `0` sebagai pembanding sebelum pengujian.
 
-### 3.2 Dummy-Plug (`192.238.4.51`) — uji port tertutup (22, 23, 3306) dan port layanan (80, 8080)
+#### 3.2 Dummy-Plug (`192.238.4.51`) — uji port tertutup (22, 23, 3306) dan port layanan (80, 8080)
 
 Karena Dummy-Plug memakai image Alpine (`nc` versi BusyBox yang tidak selalu mencetak pesan error), pengujian menampilkan **exit code** (`$?`) dan **durasi** (`time`) untuk membuktikan koneksi ke port 22, 23, dan 3306 gagal seketika (~0,00 detik), bukan menunggu timeout 2 detik.
 
@@ -2097,15 +2092,14 @@ Welcome to Tokyo3-Core
 === Uji Port 8080 ===
 syifa imutz
 ```
-<img width="477" height="426" alt="Screenshot 2026-11-25 at 17 40 52" src="https://github.com/user-attachments/assets/30f928c8-7a16-4c6c-8043-b9270989f492" />
 
-![Dummy-Plug: port 22/23/3306 ditolak seketika, port 80/8080 berhasil](f4036541-image.png)
+<img src="https://github.com/user-attachments/assets/30f928c8-7a16-4c6c-8043-b9270989f492" width="477" alt="Dummy-Plug: port 22/23/3306 ditolak seketika, port 80/8080 berhasil">
 
 **Analisis:**
 - Port **22, 23, dan 3306** selesai dalam **0,002 detik** dengan `Exit code: 1`. Jauh di bawah batas `-w 2` (2 detik), sehingga koneksi ditolak seketika (TCP RST), bukan dibiarkan menggantung sampai timeout.
 - Port **80** membalas `Welcome to Tokyo3-Core` dan port **8080** membalas `syifa imutz`, sehingga layanan tetap dapat diakses.
 
-### 3.3 Tokyo3-Core — counter rule pencatatan (`LOG`) dan penolakan (`REJECT`)
+#### 3.3 Tokyo3-Core — counter rule pencatatan (`LOG`) dan penolakan (`REJECT`)
 
 Log kernel sering tidak terlihat di container, sehingga bukti pencatatan diambil dari counter rule.
 
@@ -2127,9 +2121,8 @@ Chain INPUT (policy ACCEPT 20 packets, 1072 bytes)
     2   120 LOG     tcp  --  *   *    192.238.4.51   0.0.0.0/0   tcp dpt:3306 LOG flags 0 level 4 prefix "SCAN-NERV: "
     2   120 REJECT  tcp  --  *   *    192.238.4.51   0.0.0.0/0   tcp dpt:3306 reject-with tcp-reset
 ```
-<img width="480" height="263" alt="Screenshot 2026-11-25 at 17 42 04" src="https://github.com/user-attachments/assets/66e93990-3ab0-4408-a5c0-5119592c5a91" />
 
-![Tokyo3-Core: counter rule LOG dan REJECT naik setelah scanning](7e905575-image.png)
+<img src="https://github.com/user-attachments/assets/66e93990-3ab0-4408-a5c0-5119592c5a91" width="480" alt="Tokyo3-Core: counter rule LOG dan REJECT naik setelah scanning">
 
 **Analisis:**
 - Counter rule `LOG` untuk port **22, 23, dan 3306** masing-masing naik dari `0` menjadi **2 paket / 120 byte**, membuktikan setiap percobaan koneksi dari Dummy-Plug tercatat dengan prefix `SCAN-NERV: `.
@@ -2139,7 +2132,7 @@ Chain INPUT (policy ACCEPT 20 packets, 1072 bytes)
 
 ---
 
-## 4. Hasil dan Pembahasan
+### 4. Hasil dan Pembahasan
 
 | Pengujian | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
 |-----------|-----------------------|--------------|:-----------:|
@@ -2162,22 +2155,25 @@ Chain INPUT (policy ACCEPT 20 packets, 1072 bytes)
 
 ---
 
-## 5. Kesimpulan
+### 5. Kesimpulan
 
 Dengan menggabungkan aturan Soal 15 dan Soal 16 pada `/root/tokyo3.sh`, setiap koneksi TCP dari Dummy-Plug (`192.238.4.51`) ke port 22, 23, dan 3306 di Tokyo3-Core dicatat dengan prefix `SCAN-NERV: ` melalui rule `LOG`, lalu ditolak seketika melalui `REJECT --reject-with tcp-reset`. Pengujian menunjukkan koneksi ke port tertutup gagal dalam sekitar 0,002 detik dengan `Exit code: 1`, sedangkan port 80 dan 8080 tetap berhasil. Counter rule `LOG` dan `REJECT` naik sebagai bukti pencatatan dan penolakan. Seluruh persyaratan Soal 16 terpenuhi.
 
-# Laporan Pengerjaan Soal 17 — Sihir Hitam di Jalur Paket
+---
+
+## Soal 17: Sihir Hitam di Jalur Paket
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3) — Fuyutsuki (router), Magi-Casper, Zeruel, Pen-Pen
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Sihir hitam di jalur paket:** Ritsuko meninggalkan memo di meja Gendo. Paket dari Casper ke Zeruel tidak pernah sampai ke Zeruel, karena ada router yang diam-diam mengalihkannya ke tempat lain. *"Cari saja router yang menjadi gateway Switch-Terminal."* Gendo menyuruhmu meniru router yang diam-diam itu untuk menjebak siapa pun. Di **Fuyutsuki**, alihkan setiap koneksi **TCP** dari Magi-Casper ke Zeruel supaya sampai di **Pen-Pen**. Casper tidak boleh sadar. Balasan yang ia terima harus tetap terlihat datang dari Zeruel. **Ping tidak dialihkan.** Nyalakan listener **port 9000** di Pen-Pen dan Zeruel. Dari Casper, kirim pesan ke IP Zeruel port 9000. Buktikan pesan itu muncul di **Pen-Pen, bukan di Zeruel**. Tunjukkan juga tabel `conntrack` di Fuyutsuki.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Pendekatan |
 |----|-----------|------------|
@@ -2188,7 +2184,7 @@ Dengan menggabungkan aturan Soal 15 dan Soal 16 pada `/root/tokyo3.sh`, setiap k
 | 5 | Listener port 9000 di Pen-Pen dan Zeruel | `nc` mendengar di port 9000 dan menulis ke file log |
 | 6 | Bukti | Isi log di Pen-Pen dan Zeruel, counter rule NAT, dan tabel `conntrack` |
 
-### Alamat IP
+#### Alamat IP
 
 | Perangkat | IP | Peran |
 |-----------|----|-------|
@@ -2199,7 +2195,7 @@ Dengan menggabungkan aturan Soal 15 dan Soal 16 pada `/root/tokyo3.sh`, setiap k
 
 ---
 
-## 2. Langkah 1 — Konfigurasi NAT Pengalihan di Fuyutsuki
+### 2. Langkah 1 — Konfigurasi NAT Pengalihan di Fuyutsuki
 
 Di console **Fuyutsuki** dipasang aturan `DNAT` dan `MASQUERADE`, tool `conntrack` disiapkan, dan konfigurasi disimpan persisten di `/root/fuyutsuki.sh` (dijalankan otomatis lewat `/etc/profile` dan `/root/.bashrc`).
 
@@ -2234,10 +2230,7 @@ bash /root/fuyutsuki.sh
 iptables -t nat -S
 ```
 
-<!-- CEK: pada screenshot, baris printf/tee autostart terpotong di layar. Samakan dengan perintah aslimu bila berbeda. -->
-<img width="484" height="621" alt="Screenshot 2026-11-25 at 17 50 32" src="https://github.com/user-attachments/assets/c4f764f4-c5dd-4fe8-a473-81be700822d9" />
-
-![Menjalankan skrip NAT di Fuyutsuki](93d21472-image.png)
+<img src="https://github.com/user-attachments/assets/c4f764f4-c5dd-4fe8-a473-81be700822d9" width="484" alt="Menjalankan skrip NAT di Fuyutsuki">
 
 **Penjelasan:**
 
@@ -2257,9 +2250,9 @@ Kedua rule memakai `-p tcp`, sehingga ICMP tidak cocok dan tetap diteruskan ke t
 
 ---
 
-## 3. Langkah 2 — Menyalakan Listener Port 9000 di Pen-Pen dan Zeruel
+### 3. Langkah 2 — Menyalakan Listener Port 9000 di Pen-Pen dan Zeruel
 
-### 3.1 Pen-Pen (`192.238.3.194`)
+#### 3.1 Pen-Pen (`192.238.3.194`)
 
 ```bash
 rm -f /tmp/penpen_9000.log && touch /tmp/penpen_9000.log
@@ -2272,11 +2265,10 @@ ss -tlnp | grep 9000
 ```
 LISTEN 0  1  0.0.0.0:9000  0.0.0.0:*  users:(("nc.traditional",pid=693,fd=3))
 ```
-<img width="481" height="104" alt="Screenshot 2026-11-25 at 17 51 24" src="https://github.com/user-attachments/assets/0482e561-f2f7-48e3-bed5-759e9358ae51" />
 
-![Pen-Pen: listener port 9000 aktif](2fda2f0c-image.png)
+<img src="https://github.com/user-attachments/assets/0482e561-f2f7-48e3-bed5-759e9358ae51" width="481" alt="Pen-Pen: listener port 9000 aktif">
 
-### 3.2 Zeruel (`192.238.4.82`)
+#### 3.2 Zeruel (`192.238.4.82`)
 
 ```bash
 rm -f /tmp/zeruel_9000.log && touch /tmp/zeruel_9000.log
@@ -2293,17 +2285,16 @@ netstat -tlnp 2>/dev/null | grep 9000 || ss -tlnp | grep 9000
 ```
 LISTEN 0  1  0.0.0.0:9000  0.0.0.0:*  users:(("nc",pid=345,fd=3))
 ```
-<img width="482" height="386" alt="Screenshot 2026-11-25 at 17 51 39" src="https://github.com/user-attachments/assets/63fd3424-15b8-4a40-b771-5b829e9f4fec" />
 
-![Zeruel: listener port 9000 aktif](e09251f4-image.png)
+<img src="https://github.com/user-attachments/assets/63fd3424-15b8-4a40-b771-5b829e9f4fec" width="482" alt="Zeruel: listener port 9000 aktif">
 
 Kedua listener menulis pesan masuk ke file log masing-masing (`/tmp/penpen_9000.log` dan `/tmp/zeruel_9000.log`) sehingga tempat tibanya pesan dapat dibuktikan.
 
 ---
 
-## 4. Langkah 3 — Pengujian dan Bukti
+### 4. Langkah 3 — Pengujian dan Bukti
 
-### 4.1 Magi-Casper (`192.238.4.58`) — ping (tidak dialihkan) dan kirim pesan TCP ke Zeruel port 9000
+#### 4.1 Magi-Casper (`192.238.4.58`) — ping (tidak dialihkan) dan kirim pesan TCP ke Zeruel port 9000
 
 ```bash
 ping -c 3 192.238.4.82
@@ -2325,16 +2316,15 @@ rtt min/avg/max/mdev = 1.217/1.951/2.397/0.523 ms
 192.238.4.82: inverse host lookup failed: Unknown host
 (UNKNOWN) [192.238.4.82] 9000 (?) open
 ```
-<img width="480" height="217" alt="Screenshot 2026-11-25 at 17 53 16" src="https://github.com/user-attachments/assets/2d7723e7-e385-4cbf-9b08-87992b985226" />
 
-![Magi-Casper: ping dan kirim pesan TCP ke Zeruel:9000](44189211-image.png)
+<img src="https://github.com/user-attachments/assets/2d7723e7-e385-4cbf-9b08-87992b985226" width="480" alt="Magi-Casper: ping dan kirim pesan TCP ke Zeruel:9000">
 
 **Analisis:**
 - Ping ke Zeruel berhasil 0% packet loss: ICMP **tidak dialihkan** dan tetap menuju Zeruel.
 - `nc -v` melaporkan koneksi ke `192.238.4.82` port `9000` berstatus `open`. Casper melihat koneksi tersambung ke Zeruel dan tidak sadar bahwa paketnya dialihkan.
 - Pesan `inverse host lookup failed: Unknown host` hanya berasal dari reverse DNS oleh `nc` dan tidak berkaitan dengan NAT.
 
-### 4.2 Pen-Pen — pesan masuk ke Pen-Pen
+#### 4.2 Pen-Pen — pesan masuk ke Pen-Pen
 
 ```bash
 cat /tmp/penpen_9000.log
@@ -2345,22 +2335,20 @@ cat /tmp/penpen_9000.log
 ```
 Pesan jebakan dari Magi-Casper ke Zeruel:9000
 ```
-<img width="481" height="24" alt="Screenshot 2026-11-25 at 17 53 42" src="https://github.com/user-attachments/assets/63cb9f2f-dbb4-472c-8a4c-64d6b8e8c51a" />
 
-![Pen-Pen: pesan dari Casper muncul di log](fd73ff8f-image.png)
+<img src="https://github.com/user-attachments/assets/63cb9f2f-dbb4-472c-8a4c-64d6b8e8c51a" width="481" alt="Pen-Pen: pesan dari Casper muncul di log">
 
-### 4.3 Zeruel — pesan tidak sampai ke Zeruel
+#### 4.3 Zeruel — pesan tidak sampai ke Zeruel
 
 ```bash
 cat /tmp/zeruel_9000.log
 ```
 
 **Hasil:** (kosong, tidak ada pesan)
-<img width="482" height="28" alt="Screenshot 2026-11-25 at 17 54 03" src="https://github.com/user-attachments/assets/f5317c8a-a40d-4361-a7b5-3436d21bf1ef" />
 
-![Zeruel: log kosong, pesan tidak sampai](a6659552-image.png)
+<img src="https://github.com/user-attachments/assets/f5317c8a-a40d-4361-a7b5-3436d21bf1ef" width="482" alt="Zeruel: log kosong, pesan tidak sampai">
 
-### 4.4 Fuyutsuki — counter rule NAT dan tabel `conntrack`
+#### 4.4 Fuyutsuki — counter rule NAT dan tabel `conntrack`
 
 ```bash
 iptables -t nat -L -n -v
@@ -2384,9 +2372,8 @@ Chain POSTROUTING (policy ACCEPT 2 packets, 155 bytes)
 tcp  6 12 TIME_WAIT src=192.238.4.58 dst=192.238.4.82 sport=34700 dport=9000
      src=192.238.3.194 dst=192.238.4.165 sport=9000 dport=34700 [ASSURED] mark=0 use=1
 ```
-<img width="481" height="349" alt="Screenshot 2026-11-25 at 17 55 17" src="https://github.com/user-attachments/assets/58fb8e10-307e-46b0-b6d1-712ecdd6d145" />
 
-![Fuyutsuki: counter NAT dan entri conntrack](794103d5-image.png)
+<img src="https://github.com/user-attachments/assets/58fb8e10-307e-46b0-b6d1-712ecdd6d145" width="481" alt="Fuyutsuki: counter NAT dan entri conntrack">
 
 **Analisis:**
 - Rule `DNAT` di `PREROUTING` dan `MASQUERADE` di `POSTROUTING` masing-masing mencatat **1 paket / 60 byte**, yaitu paket pertama koneksi (sisa paket koneksi diproses lewat tabel `conntrack` sehingga tidak menaikkan counter rule lagi). Ini membuktikan kedua rule benar-benar mengenai koneksi dari Casper.
@@ -2397,7 +2384,7 @@ tcp  6 12 TIME_WAIT src=192.238.4.58 dst=192.238.4.82 sport=34700 dport=9000
 
 ---
 
-## 5. Hasil dan Pembahasan
+### 5. Hasil dan Pembahasan
 
 | Pengujian | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
 |-----------|-----------------------|--------------|:-----------:|
@@ -2418,22 +2405,25 @@ tcp  6 12 TIME_WAIT src=192.238.4.58 dst=192.238.4.82 sport=34700 dport=9000
 
 ---
 
-## 6. Kesimpulan
+### 6. Kesimpulan
 
 Dengan memasang rule `DNAT` (`PREROUTING`) dan `MASQUERADE` (`POSTROUTING`) pada tabel `nat` di Fuyutsuki, setiap koneksi TCP dari Magi-Casper ke Zeruel dialihkan secara diam-diam ke Pen-Pen. Casper tidak menyadarinya karena balasan tetap terlihat datang dari Zeruel, sedangkan ping tidak dialihkan. Pesan yang dikirim ke Zeruel port 9000 terbukti muncul di Pen-Pen dan tidak di Zeruel, didukung counter rule NAT dan entri tabel `conntrack` di Fuyutsuki. Seluruh persyaratan Soal 17 terpenuhi.
 
-# Laporan Pengerjaan Soal 18 — Gerbang Monolith dan Radar
+---
+
+## Soal 18: Gerbang Monolith dan Radar
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3) — Shigeru (router/firewall), Magi-Casper, Lilith, Zeruel
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Gerbang Monolith dan Radar:** Monolith dan Radar menyimpan rahasia terbesar NERV, dan Shigeru menjaganya tanpa kompromi. Pasang aturan di **Shigeru**. Node di dalam zona boleh memulai koneksi ke mana saja, dan balasannya tetap sampai. Node di luar zona **tidak boleh memulai koneksi ke dalam zona**. Satu pengecualian: **ping dari subnet Terminal boleh masuk**. Tolak berdasarkan **arah datangnya**, yaitu semua yang datang dari sisi Shigeru yang menghadap Gendo. **Jangan menulis subnet luar satu per satu**, supaya subnet baru langsung ikut terblokir. Buktikan ping Casper ke Zeruel **berhasil**, sedangkan ping Lilith ke Zeruel **gagal**.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Pendekatan |
 |----|-----------|------------|
@@ -2443,7 +2433,7 @@ Dengan memasang rule `DNAT` (`PREROUTING`) dan `MASQUERADE` (`POSTROUTING`) pada
 | 4 | Tolak berdasarkan arah datang, bukan daftar subnet luar | Pencocokan berdasarkan **interface masuk** (`-i eth0`), bukan alamat sumber |
 | 5 | Subnet baru langsung ikut terblokir | Karena rule berbasis interface, semua subnet baru yang datang dari arah Gendo otomatis terkena `DROP` |
 
-### Alamat IP dan interface
+#### Alamat IP dan interface
 
 | Perangkat / Interface | IP | Keterangan |
 |-----------------------|----|------------|
@@ -2456,7 +2446,7 @@ Dengan memasang rule `DNAT` (`PREROUTING`) dan `MASQUERADE` (`POSTROUTING`) pada
 
 ---
 
-## 2. Langkah 1 — Memasang Script Firewall di Shigeru
+### 2. Langkah 1 — Memasang Script Firewall di Shigeru
 
 Di console **Shigeru**, interface `eth0` dipastikan menghadap Gendo (`192.238.4.154/30`), lalu script firewall Soal 18 dibuat di `/root/shigeru.sh` dan didaftarkan ke autostart agar persisten saat container restart.
 
@@ -2497,10 +2487,7 @@ printf '\n# === AUTOSTART SHIGERU ===\n[ -f /root/shigeru.sh ] && bash /root/shi
 bash /root/shigeru.sh
 ```
 
-<!-- CEK: pada screenshot, baris printf/tee autostart terpotong di layar. Samakan dengan perintah aslimu bila berbeda. -->
-<img width="362" height="243" alt="Screenshot 2026-11-26 at 10 05 37" src="https://github.com/user-attachments/assets/418728f4-b3f9-4dfe-a1b7-48dcda3bad2c" />
-
-![Perintah pemasangan script firewall di Shigeru](f35a4e53-image.png)
+<img src="https://github.com/user-attachments/assets/418728f4-b3f9-4dfe-a1b7-48dcda3bad2c" width="362" alt="Perintah pemasangan script firewall di Shigeru">
 
 **Hasil di terminal (`ip -br a` dan `ip_forward`):**
 
@@ -2512,9 +2499,8 @@ eth2   UNKNOWN  192.238.4.157/30
 eth3   UNKNOWN  fe80::42:11ff:fe4c:ba03/64
 net.ipv4.ip_forward = 1
 ```
-<img width="362" height="243" alt="Screenshot 2026-11-26 at 10 05 37" src="https://github.com/user-attachments/assets/418728f4-b3f9-4dfe-a1b7-48dcda3bad2c" />
 
-![Hasil menjalankan script di Shigeru](ce51cf39-image.png)
+<img src="https://github.com/user-attachments/assets/418728f4-b3f9-4dfe-a1b7-48dcda3bad2c" width="362" alt="Hasil menjalankan script di Shigeru">
 
 **Penjelasan:**
 
@@ -2536,9 +2522,9 @@ Soal meminta penolakan berdasarkan arah datangnya dan melarang menulis subnet lu
 
 ---
 
-## 3. Langkah 2 — Pengujian dan Bukti
+### 3. Langkah 2 — Pengujian dan Bukti
 
-### 3.1 Shigeru — cek aturan firewall yang aktif
+#### 3.1 Shigeru — cek aturan firewall yang aktif
 
 ```bash
 iptables -S
@@ -2554,13 +2540,12 @@ iptables -S
 -A FORWARD -s 192.238.4.56/29 -i eth0 -p icmp -m icmp --icmp-type 8 -j ACCEPT
 -A FORWARD -i eth0 -j DROP
 ```
-<img width="361" height="71" alt="Screenshot 2026-11-26 at 10 07 08" src="https://github.com/user-attachments/assets/1923758a-3546-4adf-a23c-e8b3455a684a" />
 
-![Shigeru: aturan firewall aktif (iptables -S)](4560a7f9-image.png)
+<img src="https://github.com/user-attachments/assets/1923758a-3546-4adf-a23c-e8b3455a684a" width="361" alt="Shigeru: aturan firewall aktif (iptables -S)">
 
 **Analisis:** Urutan chain `FORWARD` sesuai rancangan: `ESTABLISHED,RELATED` → `ACCEPT` ICMP dari `192.238.4.56/29` via `eth0` → `DROP` semua paket masuk via `eth0`.
 
-### 3.2 Magi-Casper (`192.238.4.58`) — ping ke Zeruel (harus berhasil)
+#### 3.2 Magi-Casper (`192.238.4.58`) — ping ke Zeruel (harus berhasil)
 
 ```bash
 ping -c 3 192.238.4.82
@@ -2577,11 +2562,10 @@ ping -c 3 192.238.4.82
 3 packets transmitted, 3 received, 0% packet loss, time 2223ms
 rtt min/avg/max/mdev = 1.092/1.803/2.800/0.725 ms
 ```
-<img width="359" height="101" alt="Screenshot 2026-11-26 at 10 09 05" src="https://github.com/user-attachments/assets/a0882774-9321-4fc8-82f4-27ec33ca6936" />
 
-![Casper: ping ke Zeruel berhasil](6e20a6e9-image.png)
+<img src="https://github.com/user-attachments/assets/a0882774-9321-4fc8-82f4-27ec33ca6936" width="359" alt="Casper: ping ke Zeruel berhasil">
 
-### 3.3 Lilith (`192.238.4.74`) — ping ke Zeruel (harus gagal)
+#### 3.3 Lilith (`192.238.4.74`) — ping ke Zeruel (harus gagal)
 
 ```bash
 ping -c 3 -W 1 192.238.4.82
@@ -2592,11 +2576,10 @@ ping -c 3 -W 1 192.238.4.82
 ```
 3 packets transmitted, 0 received, 100% packet loss, time 2263ms
 ```
-<img width="363" height="223" alt="Screenshot 2026-11-26 at 10 10 00" src="https://github.com/user-attachments/assets/1d517cdb-552b-4bfd-b52c-ab653a9c409d" />
 
-![Lilith: ping ke Zeruel gagal](d0b1fac3-image.png)
+<img src="https://github.com/user-attachments/assets/1d517cdb-552b-4bfd-b52c-ab653a9c409d" width="363" alt="Lilith: ping ke Zeruel gagal">
 
-### 3.4 Zeruel (`192.238.4.82`) — node dalam zona tetap bisa memulai koneksi ke luar (Lilith dan 8.8.8.8)
+#### 3.4 Zeruel (`192.238.4.82`) — node dalam zona tetap bisa memulai koneksi ke luar (Lilith dan 8.8.8.8)
 
 ```bash
 ping -c 3 192.238.4.75
@@ -2622,13 +2605,12 @@ PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
 3 packets transmitted, 3 received, 0% packet loss, time 2002ms
 rtt min/avg/max/mdev = 21.704/22.213/22.574/0.370 ms
 ```
-<img width="398" height="191" alt="Screenshot 2026-11-27 at 10 14 14" src="https://github.com/user-attachments/assets/57842b2c-0ba0-4c91-a558-f54090a9c283" />
 
-![Zeruel: ping ke Lilith dan 8.8.8.8 berhasil](5561e8cc-image.png)
+<img src="https://github.com/user-attachments/assets/57842b2c-0ba0-4c91-a558-f54090a9c283" width="398" alt="Zeruel: ping ke Lilith dan 8.8.8.8 berhasil">
 
 **Analisis:** Zeruel (di dalam zona) dapat memulai koneksi ke Lilith (luar zona) dan ke internet (`8.8.8.8`), dan balasannya tetap sampai. Hal ini sesuai persyaratan "node di dalam zona boleh memulai koneksi ke mana saja".
 
-### 3.5 Shigeru — counter paket yang lolos dan yang dibuang
+#### 3.5 Shigeru — counter paket yang lolos dan yang dibuang
 
 ```bash
 iptables -L FORWARD -n -v
@@ -2643,9 +2625,8 @@ Chain FORWARD (policy ACCEPT 2 packets, 168 bytes)
     1    84 ACCEPT  icmp --  eth0  *    192.238.4.56/29  0.0.0.0/0   icmptype 8
     3   252 DROP    all  --  eth0  *    0.0.0.0/0        0.0.0.0/0
 ```
-<img width="362" height="125" alt="Screenshot 2026-11-26 at 10 11 03" src="https://github.com/user-attachments/assets/6a78ede9-9e29-4538-9019-024541667a7e" />
 
-![Shigeru: counter chain FORWARD](8d5e9d84-image.png)
+<img src="https://github.com/user-attachments/assets/6a78ede9-9e29-4538-9019-024541667a7e" width="362" alt="Shigeru: counter chain FORWARD">
 
 **Analisis:**
 - Rule `DROP` mencatat **3 paket / 252 byte**. Angka ini sama dengan 3 ping dari Lilith (3 × 84 byte), yang semuanya dibuang karena datang dari `eth0` dan bukan dari subnet Terminal.
@@ -2655,7 +2636,7 @@ Chain FORWARD (policy ACCEPT 2 packets, 168 bytes)
 
 ---
 
-## 4. Hasil dan Pembahasan
+### 4. Hasil dan Pembahasan
 
 | Pengujian | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
 |-----------|-----------------------|--------------|:-----------:|
@@ -2674,22 +2655,25 @@ Chain FORWARD (policy ACCEPT 2 packets, 168 bytes)
 
 ---
 
-## 5. Kesimpulan
+### 5. Kesimpulan
 
 Dengan tiga rule di chain `FORWARD` pada Shigeru, yaitu `ESTABLISHED,RELATED → ACCEPT`, `ACCEPT` ICMP `echo-request` dari `192.238.4.56/29` via `eth0`, dan `DROP` semua paket masuk via `eth0`, zona yang dijaga Shigeru hanya dapat diakses sesuai aturan. Node di dalam zona dapat memulai koneksi ke mana saja dan balasannya tetap sampai, node di luar zona tidak dapat memulai koneksi ke dalam zona, dan ping dari subnet Terminal dikecualikan. Penolakan berbasis interface masuk (`-i eth0`) membuat subnet luar baru otomatis terblokir tanpa perlu ditulis satu per satu. Ping Casper ke Zeruel berhasil, sedangkan ping Lilith ke Zeruel gagal. Seluruh persyaratan Soal 18 terpenuhi.
 
-# Laporan Pengerjaan Soal 19 — Hukuman untuk Sang Pengkhianat
+---
+
+## Soal 19: Hukuman untuk Sang Pengkhianat
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3) — Switch-Monolith, Shigeru, Armisael, Zeruel, Lilith, Seele (`8.8.8.8`)
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Hukuman untuk sang pengkhianat:** hitung mundur tinggal beberapa menit. **Armisael tidak boleh lagi bicara dengan siapa pun**, tapi **Zeruel** di sebelahnya tidak boleh ikut terhukum. Blokir **semua lalu lintas masuk dan keluar** Armisael, termasuk ke gateway dan tetangga satu switch. **Isolasi tidak boleh dikerjakan di dalam Armisael**, karena pengkhianat tidak bisa dipercaya. Untuk uji `nc`, nyalakan listener TCP 9000 di Armisael, Zeruel, dan Lilith. Ke Seele pakai TCP 53. Buktikan ping dan `nc` dari Armisael ke Seele, Zeruel, dan Lilith **gagal**. Buktikan ping dan `nc` dari Zeruel ke Seele dan Lilith **berhasil**.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Pendekatan |
 |----|-----------|------------|
@@ -2698,7 +2682,7 @@ Dengan tiga rule di chain `FORWARD` pada Shigeru, yaitu `ESTABLISHED,RELATED →
 | 3 | Blokir seluruh lalu lintas masuk & keluar di level router/gateway (`Shigeru`) | Rule `DROP` di baris teratas chain `INPUT` dan `FORWARD` pada `Shigeru` untuk sumber maupun tujuan `192.238.4.83/32` |
 | 4 | Zeruel di sebelahnya tidak boleh ikut terhukum | Port `Zeruel` dan uplink `Shigeru` tetap di `VLAN 1`, serta rule `Shigeru` hanya menargetkan IP `192.238.4.83/32` |
 
-### Alamat IP
+#### Alamat IP
 
 | Perangkat | IP | Peran pada Soal 19 |
 |-----------|----|--------------------|
@@ -2710,9 +2694,9 @@ Dengan tiga rule di chain `FORWARD` pada Shigeru, yaitu `ESTABLISHED,RELATED →
 
 ---
 
-## 2. Langkah Pengerjaan (Tanpa Menyentuh Konfigurasi Armisael)
+### 2. Langkah Pengerjaan (Tanpa Menyentuh Konfigurasi Armisael)
 
-### 2.1 Isolasi Layer 2 di `Switch-Monolith` (Memutus Jalur ke Tetangga Satu Switch & Gateway)
+#### 2.1 Isolasi Layer 2 di `Switch-Monolith` (Memutus Jalur ke Tetangga Satu Switch & Gateway)
 
 Karena `Armisael` (`192.238.4.83/29`) dan `Zeruel` (`192.238.4.82/29`) berada dalam satu segmen jaringan dan satu switch (`Switch-Monolith`), komunikasi langsung antar-keduanya berjalan pada **Layer 2 (switching)** tanpa melewati router `Shigeru`. Oleh karena itu, pemisahan dilakukan di tingkat switch:
 
@@ -2720,9 +2704,9 @@ Karena `Armisael` (`192.238.4.83/29`) dan `Zeruel` (`192.238.4.82/29`) berada da
 2. Mengidentifikasi port yang terhubung ke `Armisael` yaitu interface **`e6`** (**Port 6**).
 3. Mengubah konfigurasi **Port 6** dari `VLAN 1` menjadi **`VLAN 99`** (`access`), sedangkan port menuju `Zeruel` dan uplink `Shigeru` (`eth1`) dibiarkan tetap pada **`VLAN 1`**, lalu menekan **Apply** dan **OK**.
 
-<img width="1130" height="450" alt="image" src="https://github.com/user-attachments/assets/6a7873c8-34e3-474d-9c61-212b53bcc607" />
+<img src="https://github.com/user-attachments/assets/6a7873c8-34e3-474d-9c61-212b53bcc607" width="550" alt="Konfigurasi VLAN Switch-Monolith">
 
-### 2.2 Isolasi Layer 3 di Router `Shigeru` (`/root/shigeru.sh`)
+#### 2.2 Isolasi Layer 3 di Router `Shigeru` (`/root/shigeru.sh`)
 
 Untuk memastikan tidak ada paket dari maupun menuju `Armisael` (`192.238.4.83`) yang diproses atau diteruskan oleh router `Shigeru`, ditambahkan 4 aturan `DROP` di baris paling atas chain `INPUT` dan `FORWARD` pada `/root/shigeru.sh` (sebelum aturan `ESTABLISHED,RELATED` dan aturan Soal 18):
 
@@ -2740,30 +2724,33 @@ Verifikasi urutan aturan di `Shigeru`:
 bash /root/shigeru.sh && iptables -S
 ```
 
-<img width="1024" height="332" alt="image" src="https://github.com/user-attachments/assets/9d045ad9-894e-4fa3-83f5-6aa83c383b89" />
+<img src="https://github.com/user-attachments/assets/9d045ad9-894e-4fa3-83f5-6aa83c383b89" width="550" alt="Urutan aturan iptables di Shigeru">
 
-### 2.3 Menyalakan Listener TCP 9000 di Armisael, Zeruel dan Lilith  
+#### 2.3 Menyalakan Listener TCP 9000 di Armisael, Zeruel dan Lilith
+
 Pada masing-masing node (Armisael, Zeruel, dan Lilith) dijalankan listener nc di background pada port TCP 9000 (sedangkan Seele 8.8.8.8 sudah menyediakan layanan TCP 53 secara bawaan):
 
 ```bash
 nohup sh -c 'while true; do echo "Halo dari $(hostname)" | nc -l -p 9000 >/dev/null 2>&1; done' >/dev/null 2>&1 &
 ```
 
-- Armisael  
-  <img width="1059" height="84" alt="image" src="https://github.com/user-attachments/assets/5df9fcc9-a292-4d2b-8df4-5da994199fec" />
+- Armisael
 
-- Zeruel  
-  <img width="1062" height="84" alt="image" src="https://github.com/user-attachments/assets/ba18b413-6ba4-473b-bd57-27f404f63d9d" />
+  <img src="https://github.com/user-attachments/assets/5df9fcc9-a292-4d2b-8df4-5da994199fec" width="550" alt="Listener TCP 9000 di Armisael">
+
+- Zeruel
+
+  <img src="https://github.com/user-attachments/assets/ba18b413-6ba4-473b-bd57-27f404f63d9d" width="550" alt="Listener TCP 9000 di Zeruel">
 
 - Lilith
-  <img width="1062" height="84" alt="image" src="https://github.com/user-attachments/assets/274f5d51-59b1-4a74-adec-399f53bd9fd5" />
 
+  <img src="https://github.com/user-attachments/assets/274f5d51-59b1-4a74-adec-399f53bd9fd5" width="550" alt="Listener TCP 9000 di Lilith">
 
-## Tahap 3: Pengujian 
+### Tahap 3: Pengujian
 
-### 3.1 Uji dari Armisael 
+#### 3.1 Uji dari Armisael
 
-```
+```bash
 ping -c 3 -W 1 8.8.8.8
 ping -c 3 -W 1 192.238.4.82
 ping -c 3 -W 1 192.238.4.75
@@ -2771,13 +2758,14 @@ nc -v -w 2 8.8.8.8 53 </dev/null; echo "Exit code Seele (8.8.8.8:53): $?"
 nc -v -w 2 192.238.4.82 9000 </dev/null; echo "Exit code Zeruel (9000): $?"
 nc -v -w 2 192.238.4.75 9000 </dev/null; echo "Exit code Lilith (9000): $?"
 ```
-Hasil yang diharapkan semua paket yang di ping gagal agar bisa membuktikan bahwa aturan isolasi telah berhasil. 
 
-<img width="1060" height="594" alt="image" src="https://github.com/user-attachments/assets/63ed1782-362e-49d0-8dba-e45bda57f8ed" />
+Hasil yang diharapkan semua paket yang di ping gagal agar bisa membuktikan bahwa aturan isolasi telah berhasil.
 
-### 3.2 Uji dari Zeruel 
+<img src="https://github.com/user-attachments/assets/63ed1782-362e-49d0-8dba-e45bda57f8ed" width="550" alt="Pengujian dari Armisael">
 
-```
+#### 3.2 Uji dari Zeruel
+
+```bash
 ping -c 3 8.8.8.8
 ping -c 3 192.238.4.74
 nc -w 2 8.8.8.8 53 </dev/null; echo "Exit code Seele (8.8.8.8:53): $?"
@@ -2786,20 +2774,23 @@ nc -w 2 192.238.4.74 9000 </dev/null; echo "Exit code Lilith (9000): $?"
 
 Semua perintah ping harus berhasil untuk membuktikan aturan isolasi Armisael berhasil presisi dan tidak berpengaruh ke sesama subnet.
 
-<img width="1060" height="595" alt="image" src="https://github.com/user-attachments/assets/0ccf8c3e-3d93-4332-941c-cd885f3b60cc" />
+<img src="https://github.com/user-attachments/assets/0ccf8c3e-3d93-4332-941c-cd885f3b60cc" width="550" alt="Pengujian dari Zeruel">
 
-# Laporan Pengerjaan Soal 20 — Uji Kebakaran Geofront
+---
+
+## Soal 20: Uji Kebakaran Geofront
 
 **Modul:** Modul 5 2026
+
 **Topologi:** MAGI (GNS3, project `K-54-MODUL-5`) — Tokyo3-Core, Pen-Pen, Fuyutsuki, Shigeru, Zeruel
 
 ---
 
-## 1. Soal
+### 1. Soal
 
 > **Uji kebakaran Geofront:** NERV harus bisa dibangun ulang dengan cepat. Pilih **tiga node** sendiri, minimal **satu router**. Di tiap node, simpan dulu rule dengan `iptables-save` ke `/root/<nama>.rules`. Lalu hapus semua rule iptables **termasuk tabel nat**, dan hapus rute yang kamu tambahkan sendiri. Pulihkan rule dengan `iptables-restore`, dan pulihkan rute dengan `/root/<nama>.sh`. Lakukan pemulihan itu **dua kali berturut-turut**. Hasilnya harus sama: rule dan rute **tidak dobel**, dan node berfungsi seperti semula. Buktikan jumlah baris `iptables -S` dan `iptables -t nat -S` sama setelah pemulihan pertama dan kedua. Buktikan juga node itu berfungsi lagi.
 
-### Ringkasan kebutuhan
+#### Ringkasan kebutuhan
 
 | No | Kebutuhan | Cara pembuktian |
 |----|-----------|-----------------|
@@ -2808,7 +2799,7 @@ Semua perintah ping harus berhasil untuk membuktikan aturan isolasi Armisael ber
 | 3 | Pemulihan dua kali, hasil sama dan tidak dobel | Jumlah baris `iptables -S` dan `iptables -t nat -S` setelah pemulihan ke-1 dan ke-2 (lihat bagian 5) |
 | 4 | Node berfungsi seperti semula | Ping dari Zeruel ke internet dan antar-zona |
 
-### Node yang diuji
+#### Node yang diuji
 
 | Node | Jenis | Konfigurasi yang harus pulih |
 |------|-------|------------------------------|
@@ -2820,29 +2811,25 @@ Semua perintah ping harus berhasil untuk membuktikan aturan isolasi Armisael ber
 
 ---
 
-## 2. Tahap 1 — Simulasi Kebakaran (Reload Seluruh Node di GNS3)
+### 2. Tahap 1 — Simulasi Kebakaran (Reload Seluruh Node di GNS3)
 
 Pada kanvas GNS3 (project `K-54-MODUL-5`), seluruh node di-*reload* untuk mensimulasikan kebakaran. Konfigurasi hanya dapat bertahan jika tersimpan secara persisten di skrip autostart masing-masing node.
 
-### 2.1 Konfirmasi *Reload All*
+#### 2.1 Konfirmasi *Reload All*
 
 Dialog konfirmasi `Confirm Reload All` ("Are you sure you want to reload all devices?") dijawab **Yes**.
-<img width="1470" height="956" alt="Screenshot 2026-11-26 at 12 59 04" src="https://github.com/user-attachments/assets/c703bcaf-4d07-4782-871f-75378fe48866" />
 
+<img src="https://github.com/user-attachments/assets/c703bcaf-4d07-4782-871f-75378fe48866" width="700" alt="Dialog Confirm Reload All di GNS3">
 
-![Dialog Confirm Reload All di GNS3](e587885d-image.png)
-
-### 2.2 Seluruh node berhasil di-reload
+#### 2.2 Seluruh node berhasil di-reload
 
 GNS3 menampilkan notifikasi **"All nodes successfully reloaded"**. Setelah itu tab *Console* tiap router dibuka kembali agar shell menjalankan skrip pemulihan secara otomatis.
 
-<img width="1470" height="956" alt="Screenshot 2026-11-26 at 12 59 36" src="https://github.com/user-attachments/assets/0ae93be3-2586-46ba-b31d-286d6f3fbcf3" />
-
-![Notifikasi All nodes successfully reloaded](6a21a8e4-image.png)
+<img src="https://github.com/user-attachments/assets/0ae93be3-2586-46ba-b31d-286d6f3fbcf3" width="700" alt="Notifikasi All nodes successfully reloaded">
 
 ---
 
-## 3. Tahap 2 — Verifikasi Pemulihan Rute dan Firewall di Tiap Router
+### 3. Tahap 2 — Verifikasi Pemulihan Rute dan Firewall di Tiap Router
 
 Di setiap router dijalankan perintah berikut setelah *reload*:
 
@@ -2852,7 +2839,7 @@ iptables -S
 iptables -t nat -S
 ```
 
-### 3.1 Tokyo3-Core
+#### 3.1 Tokyo3-Core
 
 **Hasil:**
 
@@ -2877,13 +2864,12 @@ default via 192.238.4.105 dev eth0
 -P OUTPUT ACCEPT
 -P POSTROUTING ACCEPT
 ```
-<img width="247" height="287" alt="Screenshot 2026-11-26 at 13 01 33" src="https://github.com/user-attachments/assets/11b659e6-1a93-4e58-8dbb-a7e6dfb73b15" />
 
-![Tokyo3-Core: rute dan firewall setelah reload](2be110ed-image.png)
+<img src="https://github.com/user-attachments/assets/11b659e6-1a93-4e58-8dbb-a7e6dfb73b15" width="247" alt="Tokyo3-Core: rute dan firewall setelah reload">
 
 **Analisis:** Rute default dan rute jaringan lokal tersedia kembali. Aturan Soal 15 (rate-limit ping) dan Soal 16 (`LOG` + `REJECT` untuk port 22, 23, 3306 dari `192.238.4.51`) pulih lengkap, masing-masing hanya satu kali (tidak dobel). Tabel `nat` hanya berisi policy default.
 
-### 3.2 Pen-Pen
+#### 3.2 Pen-Pen
 
 **Hasil (ringkas):**
 
@@ -2904,17 +2890,12 @@ default via 192.238.3.193 dev eth0
 -A PENPEN_ACL -s 192.238.4.51/32  -j DROP
 -A PENPEN_ACL -s 192.238.4.102/32 -j DROP
 ```
-<img width="248" height="318" alt="Screenshot 2026-11-26 at 13 01 40" src="https://github.com/user-attachments/assets/73b84152-7f21-49fd-a7cd-9e9f66acf47d" />
 
-![Pen-Pen: rute dan firewall setelah reload](6eb7418c-image.png)
-
-<!-- CEK: pada screenshot Pen-Pen, rule jadwal masih memakai --timestart 13:00:00 --timestop 15:00:00 (nilai uji Soal 14), bukan nilai asli soal (Pilot 01:00-09:00, Staf 10:00-16:00 UTC). Jika jadwal asli yang diinginkan, kembalikan variabel di /root/penpen.sh lalu ambil ulang screenshot. -->
-
-<!-- CEK: pada screenshot, ada baris "iptables v1.8.11 (nf_tables): Invalid rule number `route'" karena perintah yang ditempel bercampur ("iptables -t nat -Sip route"). Ini kesalahan ketik, bukan kegagalan pemulihan. Disarankan mengulang ketiga perintah satu per satu agar screenshot bersih. -->
+<img src="https://github.com/user-attachments/assets/73b84152-7f21-49fd-a7cd-9e9f66acf47d" width="248" alt="Pen-Pen: rute dan firewall setelah reload">
 
 **Analisis:** Rute default menuju `192.238.3.193` dan rute `192.238.3.192/27` pulih. Chain `PENPEN_ACL` beserta dua rule pengarah (`ICMP echo-request` dan TCP 80) pulih otomatis. Setiap IP Pilot, Staf, dan Dummy hanya muncul satu kali di chain.
 
-### 3.3 Fuyutsuki
+#### 3.3 Fuyutsuki
 
 **Hasil:**
 
@@ -2938,13 +2919,12 @@ default via 192.238.4.161 dev eth0
 -A PREROUTING  -s 192.238.4.58/32 -d 192.238.4.82/32 -p tcp -j DNAT --to-destination 192.238.3.194
 -A POSTROUTING -s 192.238.4.58/32 -d 192.238.3.194/32 -p tcp -j MASQUERADE
 ```
-<img width="244" height="328" alt="Screenshot 2026-11-26 at 13 01 46" src="https://github.com/user-attachments/assets/8003ff59-a4d8-48d7-b16b-2044c84ab15a" />
 
-![Fuyutsuki: rute dan NAT setelah reload](6c2db8d3-image.png)
+<img src="https://github.com/user-attachments/assets/8003ff59-a4d8-48d7-b16b-2044c84ab15a" width="244" alt="Fuyutsuki: rute dan NAT setelah reload">
 
 **Analisis:** Seluruh rute statis (menuju `192.238.3.192/27` dan `192.238.4.72/29`) kembali ada. Pada tabel `nat`, `DNAT` dan `MASQUERADE` dari Soal 17 pulih masing-masing satu rule, sedangkan `iptables -S` hanya berisi policy `ACCEPT`.
 
-### 3.4 Shigeru
+#### 3.4 Shigeru
 
 **Hasil (ringkas):**
 
@@ -2971,15 +2951,14 @@ default via 192.238.4.153 dev eth0
 -P OUTPUT ACCEPT
 -P POSTROUTING ACCEPT
 ```
-<img width="245" height="329" alt="Screenshot 2026-11-26 at 13 01 52" src="https://github.com/user-attachments/assets/005414b1-bb64-425f-b745-35e62470e39d" />
 
-![Shigeru: rute dan firewall setelah reload](7c6f5501-image.png)
+<img src="https://github.com/user-attachments/assets/005414b1-bb64-425f-b745-35e62470e39d" width="245" alt="Shigeru: rute dan firewall setelah reload">
 
 **Analisis:** `ip_forward = 1` aktif kembali, rute statis pulih, dan firewall zona dari Soal 18 (`ESTABLISHED,RELATED` → `ACCEPT` ICMP Terminal → `DROP` `eth0`) pulih dengan urutan yang benar. Output konsol juga menunjukkan skrip autostart berjalan otomatis setelah *reload* (pengecekan paket dan konfigurasi `dhcp-relay` untuk `eth0`, `eth1`, `eth2`).
 
 ---
 
-## 4. Tahap 3 — Uji Fungsionalitas Jaringan Pasca-Pemulihan (dari Zeruel)
+### 4. Tahap 3 — Uji Fungsionalitas Jaringan Pasca-Pemulihan (dari Zeruel)
 
 ```bash
 # Uji konektivitas internet (NAT & routing)
@@ -3002,15 +2981,14 @@ ping -c 3 192.238.4.75
 64 bytes from 192.238.4.74: icmp_seq=3 ttl=60 time=1.02 ms
 3 packets transmitted, 3 received, 0% packet loss, time 2223ms
 ```
-<img width="396" height="192" alt="Screenshot 2026-11-27 at 10 16 56" src="https://github.com/user-attachments/assets/be8faa59-e5e1-49e2-9252-cd26087f7a58" />
 
-![Zeruel: ping ke 8.8.8.8 dan Lilith berhasil setelah reload](0ae13bf9-image.png)
+<img src="https://github.com/user-attachments/assets/be8faa59-e5e1-49e2-9252-cd26087f7a58" width="396" alt="Zeruel: ping ke 8.8.8.8 dan Lilith berhasil setelah reload">
 
 **Analisis:** Ping dari Zeruel ke `8.8.8.8` dan ke Lilith berhasil 0% packet loss setelah seluruh node di-*reload*. Ini menunjukkan routing antar-router, NAT, dan firewall pada jalur Zeruel pulih dan jaringan berfungsi seperti semula.
 
 ---
 
-## 5. Bukti Pemulihan Manual Dua Kali (`iptables-save` / `iptables-restore`)
+### 5. Bukti Pemulihan Manual Dua Kali (`iptables-save` / `iptables-restore`)
 
 > **Bagian ini belum memiliki screenshot.** Soal meminta bukti simpan rule, penghapusan, dan pemulihan **dua kali berturut-turut** dengan perbandingan jumlah baris. Perintah di bawah adalah langkah yang perlu dijalankan dan di-screenshot (contoh pada node **Tokyo3-Core**, ganti `tokyo3` sesuai node lain). Hasilnya tidak saya isi karena tidak ada di foto.
 
@@ -3069,7 +3047,7 @@ ip route
 
 ---
 
-## 6. Hasil dan Pembahasan
+### 6. Hasil dan Pembahasan
 
 | Pengujian | Hasil yang Diharapkan | Hasil Aktual | Status |
 |-----------|-----------------------|--------------|:------:|
@@ -3089,6 +3067,6 @@ ip route
 
 ---
 
-## 7. Kesimpulan
+### 7. Kesimpulan
 
 Setelah seluruh node GNS3 di-*reload*, rute statis dan aturan firewall pada Tokyo3-Core, Pen-Pen, Fuyutsuki, dan Shigeru pulih secara otomatis dan tidak dobel, termasuk tabel `nat` pada Fuyutsuki. Ping dari Zeruel ke `8.8.8.8` dan ke Lilith berhasil 0% packet loss, sehingga jaringan berfungsi seperti semula. Bukti pemulihan manual dua kali dengan `iptables-save` dan `iptables-restore` beserta perbandingan jumlah baris perlu dilengkapi sebelum laporan dikumpulkan.
