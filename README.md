@@ -600,15 +600,59 @@ Kebijakan firewall *default-drop* (`INPUT DROP` dan `FORWARD DROP`) telah ditera
 
 ---
 
-## Soal 6
+# Laporan Pengerjaan Soal 6 — Konfigurasi IP Statis & Autostart pada Host Layanan
 
-Gunakan script ini untuk node **Unit-01**:
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Unit-01, Tokyo3-Core (`Tokyo-Core3`), Magi-Casper, dan Node Layanan Statis Lainnya
+
+---
+
+## 1. Deskripsi & Kebutuhan Soal
+
+Menetapkan alamat IP statis secara permanen pada host dan server layanan yang membutuhkan alamat tetap (seperti **`Unit-01`**, **`Tokyo3-Core`**, **`Magi-Casper`**, **`Magi-Balthasar`**, **`Magi-Melchior`**, **`Pen-Pen`**, **`Lilith`**, **`Zeruel`**, dan **`Dummy-Plug`**) melalui berkas `/etc/network/interfaces` dan skrip `/root/ip.sh` yang dijalankan otomatis lewat `/etc/profile` dan `/root/.bashrc`.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Alamat IP statis sesuai rancangan VLSM | Menulis konfigurasi `iface eth0 inet static` di `/etc/network/interfaces` |
+| 2 | Persistensi konfigurasi saat container di-*restart* | Membuat skrip `/root/ip.sh` yang menghentikan `udhcpc`, memasang IP/gateway/DNS, dan mendaftarkannya ke `/etc/profile` serta `/root/.bashrc` |
+| 3 | Verifikasi IP, rute default, dan konektivitas gateway | Mengecek `ip -br a`, `ip route`, `ping` ke gateway masing-masing, dan isi `/etc/network/interfaces` |
+
+### Alamat IP statis node yang diuji
+
+| Perangkat | Alamat IP / Prefix | Default Gateway | Subnet |
+|-----------|--------------------|-----------------|--------|
+| Unit-01 | `192.238.4.66/29` | `192.238.4.65` | Switch-Cage (`192.238.4.64/29`) |
+| Tokyo3-Core (`Tokyo-Core3`) | `192.238.4.106/30` | `192.238.4.105` | Link Tokyo3-Core (`192.238.4.104/30`) |
+| Magi-Casper | `192.238.4.58/29` | `192.238.4.57` | Switch-Terminal (`192.238.4.56/29`) |
+
+---
+
+## 2. Langkah Pengerjaan
+
+### 2.1 Konfigurasi IP statis & autostart (Contoh pada `Unit-01`)
+
+Perintah satu baris berikut menulis konfigurasi ke `/etc/network/interfaces`, membuat skrip `/root/ip.sh`, memasang *hook* autostart di `/etc/profile` dan `/root/.bashrc`, lalu langsung menerapkannya:
 
 ```bash
 printf 'auto lo\niface lo inet loopback\n\nauto eth0\niface eth0 inet static\n    address 192.238.4.66\n    netmask 255.255.255.248\n    gateway 192.238.4.65\n' > /etc/network/interfaces && printf '#!/bin/sh\npkill udhcpc 2>/dev/null\nip addr flush dev eth0\nip addr add 192.238.4.66/29 dev eth0\nip link set eth0 up\nip route replace default via 192.238.4.65\necho "nameserver 8.8.8.8" > /etc/resolv.conf\n' > /root/ip.sh && chmod +x /root/ip.sh && touch /root/.bashrc && sed -i '/# === AUTOSTART/,$d' /etc/profile /root/.bashrc && printf '\n# === AUTOSTART STATIC IP ===\n[ -f /root/ip.sh ] && sh /root/ip.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null && sh /root/ip.sh
 ```
 
-### Pengujian
+Pola skrip yang sama diterapkan pada node statis lainnya (`Tokyo3-Core`, `Magi-Casper`, dan seterusnya) dengan menyesuaikan alamat IP, *netmask*/*prefix*, dan *default gateway* masing-masing.
+
+**Penjelasan:**
+
+| Komponen | Fungsi |
+|----------|--------|
+| `/etc/network/interfaces` | Menyimpan definisi konfigurasi jaringan statis standar sistem Debian/Linux |
+| `pkill udhcpc 2>/dev/null` | Menghentikan klien DHCP bawaan agar tidak menimpa alamat IP statis |
+| `/root/ip.sh` | Skrip pemulihan cepat untuk memasang ulang IP, *default route*, dan `nameserver 8.8.8.8` |
+| `/etc/profile` & `/root/.bashrc` | Memastikan `/root/ip.sh` dieksekusi otomatis setiap kali container menyala atau console dibuka |
+
+---
+
+### 3. Pengujian dan Bukti
 
 **Unit-01**
 
@@ -645,17 +689,73 @@ cat /etc/network/interfaces
 
 ---
 
-## Soal 7
+## 4. Hasil dan Pembahasan
 
-### Langkah 1: Pasang skrip & nyalakan listener di ketiga node MAGI
+| Node | IP Statis Terpasang | Gateway | Ping ke Gateway | `/etc/network/interfaces` | Sesuai Soal |
+|------|---------------------|---------|-----------------|---------------------------|:-----------:|
+| Unit-01 | `192.238.4.66/29` | `192.238.4.65` | 0% packet loss | Sesuai | ✅ |
+| Tokyo-Core3 | `192.238.4.106/30` | `192.238.4.105` | 0% packet loss | Sesuai | ✅ |
+| Magi-Casper | `192.238.4.58/29` | `192.238.4.57` | 0% packet loss | Sesuai | ✅ |
 
-### Langkah 2: Kirim pesan dari Lilith
+**Pembahasan:**
+
+1. **Pentingnya IP Statis pada Server & Pilot:** Node seperti server MAGI (`Casper`, `Balthasar`, `Melchior`), `Pen-Pen`, `Tokyo3-Core`, dan `Unit-01` menjadi target aturan *firewall* berbasis alamat IP dan layanan *port* pada soal-soal berikutnya, sehingga alamat IP-nya tidak boleh berubah-ubah akibat *lease* DHCP.
+2. **Keandalan *Dual-Persistence*:** Kombinasi `/etc/network/interfaces` dan *hook* `/root/ip.sh` menjamin alamat IP statis tetap bertahan meskipun container GNS3 di-*reload*.
+
+---
+
+## 5. Kesimpulan
+
+Konfigurasi IP statis pada node-node layanan dan host penting (`Unit-01`, `Tokyo-Core3`, `Magi-Casper`, dan lainnya) telah terpasang secara persisten dan terhubung ke masing-masing *default gateway* dengan `0% packet loss`. Seluruh persyaratan Soal 6 terpenuhi.
+
+---
+
+# Laporan Pengerjaan Soal 7 — Aktivasi Layanan TCP pada Sistem MAGI
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Magi-Casper, Magi-Balthasar, Magi-Melchior, Lilith
+
+---
+
+## 1. Deskripsi & Kebutuhan Soal
+
+Menyalakan layanan TCP *listener* menggunakan `netcat-traditional` (`nc.traditional`) secara persisten di latar belakang pada ketiga superkomputer MAGI (**`Magi-Casper`**, **`Magi-Balthasar`**, dan **`Magi-Melchior`**) yang mencatat setiap pesan masuk ke dalam file log, lalu membuktikan pengiriman pesan dari **`Lilith`**.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Layanan TCP pada `Magi-Casper` | Menyalakan listener `nc.traditional` pada port **TCP `5000`** yang menyimpan log ke `/tmp/casper_5000.log` |
+| 2 | Layanan TCP pada `Magi-Balthasar` | Menyalakan listener `nc.traditional` pada port **TCP `5000` dan `5001`** yang menyimpan log ke `/tmp/balthasar_5000.log` & `/tmp/balthasar_5001.log` |
+| 3 | Layanan TCP pada `Magi-Melchior` | Menyalakan listener `nc.traditional` pada port **TCP `5000`** yang menyimpan log ke `/tmp/melchior_5000.log` |
+| 4 | Persistensi layanan & pengujian | Menyimpan skrip startup `/root/<nama>.sh` (memanggil `/root/ip.sh` & menjalankan *loop* listener) serta mengirim pesan uji dari `Lilith` |
+
+### Alamat IP dan port layanan MAGI
+
+| Perangkat | Alamat IP | Port TCP Aktif | Berkas Log |
+|-----------|-----------|----------------|------------|
+| Magi-Casper | `192.238.4.58` | `5000` | `/tmp/casper_5000.log` |
+| Magi-Balthasar | `192.238.4.59` | `5000`, `5001` | `/tmp/balthasar_5000.log`, `/tmp/balthasar_5001.log` |
+| Magi-Melchior | `192.238.4.60` | `5000` | `/tmp/melchior_5000.log` |
+| Lilith | `192.238.4.74` | — (Klien pengirim pesan) | — |
+
+---
+
+## 2. Langkah Pengerjaan
+
+### 2.1 Pasang skrip & nyalakan listener di ketiga node MAGI
+
+Pada masing-masing node (`Magi-Casper`, `Magi-Balthasar`, dan `Magi-Melchior`), dibuat skrip startup (`/root/casper.sh`, `/root/balthasar.sh`, dan `/root/melchior.sh`) yang memastikan paket `iptables` serta `netcat-traditional` terpasang dan menjalankan `while true; do nc.traditional -l -p <PORT> >> /tmp/<log>; done` menggunakan `nohup` di *background*, lalu didaftarkan ke `/etc/profile` dan `/root/.bashrc`.
+
+### 2.2 Kirim pesan dari Lilith (`192.238.4.74`)
+
+Dari console **`Lilith`**, dikirimkan pesan pengujian ke keempat *port* layanan pada ketiga node MAGI menggunakan `nc`:
 
 <img src="https://github.com/user-attachments/assets/8bc2be94-902c-4efc-8052-e013149d0919" width="550" alt="Kirim pesan dari Lilith">
 
-### Pengujian
+## 3. Pengujian dan Bukti
 
-**Magi-Casper**
+### 3.1 Magi-Casper (`192.238.4.58` — Port `5000`)
 
 ```bash
 ss -tlnp | grep nc
@@ -664,7 +764,7 @@ cat /tmp/casper_5000.log
 
 <img src="https://github.com/user-attachments/assets/7214f3b2-038c-4432-aab4-cdf85a809f8b" width="550" alt="Magi-Casper">
 
-**Magi-Balthasar**
+### 3.2 Magi-Balthasar (`192.238.4.59` — Port `5000` dan `5001`)
 
 ```bash
 ss -tlnp | grep nc
@@ -674,7 +774,7 @@ cat /tmp/balthasar_5001.log
 
 <img src="https://github.com/user-attachments/assets/1efdfdf2-a5c4-483b-a8bf-3c94a314f289" width="550" alt="Magi-Balthasar">
 
-**Magi-Melchior**
+### 3.3 Magi-Melchior (`192.238.4.60` — Port `5000`)
 
 ```bash
 ss -tlnp | grep nc
@@ -685,9 +785,60 @@ cat /tmp/melchior_5000.log
 
 ---
 
-## Soal 8
+## 4. Hasil dan Pembahasan
 
-### Langkah 1: Konfigurasi listener di Pen-Pen
+| Node Server | Port TCP | Status Socket (`ss -tlnp`) | Isi Log Pesan dari Lilith | Sesuai Soal |
+|-------------|----------|----------------------------|---------------------------|:-----------:|
+| Magi-Casper (`192.238.4.58`) | `5000` | `LISTEN` (`nc.traditional`) | Pesan tercatat di `/tmp/casper_5000.log` | ✅ |
+| Magi-Balthasar (`192.238.4.59`) | `5000` & `5001` | `LISTEN` (`nc.traditional`) | Pesan tercatat di kedua file log | ✅ |
+| Magi-Melchior (`192.238.4.60`) | `5000` | `LISTEN` (`nc.traditional`) | Pesan tercatat di `/tmp/melchior_5000.log` | ✅ |
+
+**Pembahasan:**
+
+1. **Perulangan Listener (`while true`):** Secara bawaan `nc.traditional -l` akan berhenti setelah satu sesi koneksi selesai. Dengan membungkusnya di dalam *loop* `while true` dan menjalankannya via `nohup ... &`, layanan port `5000` dan `5001` langsung kembali siap menerima koneksi berikutnya secara terus-menerus.
+2. **Kesiapan Infrastruktur untuk Firewall:** Keberadaan layanan nyata pada port-port MAGI ini memastikan pengujian aturan keamanan pada Soal 11, 12, dan 13 dapat diverifikasi secara langsung menggunakan trafik aplikasi TCP.
+
+---
+
+## 5. Kesimpulan
+
+Seluruh layanan TCP listener pada `Magi-Casper` (`5000`), `Magi-Balthasar` (`5000` dan `5001`), dan `Magi-Melchior` (`5000`) telah aktif secara persisten dan terbukti menerima serta mencatat pesan yang dikirim dari `Lilith`. Seluruh persyaratan Soal 7 terpenuhi.
+
+---
+
+# Laporan Pengerjaan Soal 8 — Layanan TCP Balasan Otomatis pada `Pen-Pen` & `Tokyo3-Core`
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Pen-Pen, Tokyo3-Core, Lilith
+
+---
+
+## 1. Deskripsi & Kebutuhan Soal
+
+Menyalakan layanan TCP *listener* dengan balasan otomatis (*banner response*) menggunakan opsi `-c` pada `nc.traditional` di **`Pen-Pen`** (port `80`) dan **`Tokyo3-Core`** (port `80` dan `8080`), serta membuktikan dari **`Lilith`** bahwa koneksi ke port yang terbuka langsung mendapatkan balasan teks sedangkan koneksi ke port yang tidak dibuka (seperti port `22`) langsung ditolak (`Connection refused`).
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Layanan TCP `80` pada `Pen-Pen` | Menjalankan `nc.traditional -l -p 80 -c "echo Welcome to $(hostname)"` di `/root/penpen.sh` |
+| 2 | Layanan TCP `80` & `8080` pada `Tokyo3-Core` | Menjalankan `nc.traditional -l -p 80 -c "echo Welcome to $(hostname)"` dan `nc.traditional -l -p 8080 -c "echo syifa imutz"` di `/root/tokyo3.sh` |
+| 3 | Persistensi layanan saat *restart* | Mendaftarkan `/root/penpen.sh` dan `/root/tokyo3.sh` ke `/etc/profile` dan `/root/.bashrc` dengan pengecekan `pgrep` agar proses tidak ganda |
+| 4 | Verifikasi port terbuka vs port tertutup | Menguji `nc -v` dari `Lilith` ke port `80`, `8080`, dan `22` |
+
+### Alamat IP dan spesifikasi layanan
+
+| Perangkat | Alamat IP | Port Terbuka | Balasan Otomatis | Port Tertutup (Uji) |
+|-----------|-----------|--------------|------------------|---------------------|
+| Pen-Pen | `192.238.3.194` | TCP `80` | `Welcome to Pen-Pen` | TCP `22` (`Connection refused`) |
+| Tokyo3-Core | `192.238.4.106` | TCP `80`, TCP `8080` | `Welcome to Tokyo3-Core` (`80`), `syifa imutz` (`8080`) | TCP `22` (`Connection refused`) |
+| Lilith | `192.238.4.74` | — (Klien penguji) | — | — |
+
+---
+
+## 2. Langkah Pengerjaan
+
+### 2.1 Konfigurasi listener di Pen-Pen (`/root/penpen.sh`)
 
 ```bash
 printf '#!/bin/bash\n[ -f /root/ip.sh ] && sh /root/ip.sh\nif ! command -v nc.traditional >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then\n  apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true\n  DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated iptables netcat-traditional\n  update-alternatives --set nc /bin/nc.traditional 2>/dev/null || true\nfi\nif ! pgrep -f "[n]c.traditional -l -p 80 " >/dev/null 2>&1; then\n  nohup sh -c '\''while true; do nc.traditional -l -p 80 -c "echo Welcome to $(hostname)"; done'\'' >/dev/null 2>&1 &\nfi\n' > /root/penpen.sh && chmod +x /root/penpen.sh && touch /root/.bashrc && sed -i '/# === AUTOSTART SERVICE ===/,$d' /etc/profile /root/.bashrc && printf '\n# === AUTOSTART SERVICE ===\n[ -f /root/penpen.sh ] && bash /root/penpen.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null && bash /root/penpen.sh
@@ -695,15 +846,15 @@ printf '#!/bin/bash\n[ -f /root/ip.sh ] && sh /root/ip.sh\nif ! command -v nc.tr
 
 <img src="https://github.com/user-attachments/assets/b735d440-93f4-4a69-be12-6d7c26e21de4" width="550" alt="Listener Pen-Pen">
 
-### Langkah 2: Konfigurasi listener di Tokyo3-Core
+### 2.2 Konfigurasi listener di Tokyo3-Core (`/root/tokyo3.sh`)
 
-Jalankan perintah satu baris berikut untuk menyalakan port 80 dan 8080:
+Jalankan perintah satu baris berikut untuk menyalakan port `80` dan `8080`:
 
 ```bash
 printf '#!/bin/bash\n[ -f /root/ip.sh ] && sh /root/ip.sh\nif ! command -v nc.traditional >/dev/null 2>&1 || ! command -v iptables >/dev/null 2>&1; then\n  apt-get update -o Acquire::Check-Date=false -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true\n  DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated iptables netcat-traditional\n  update-alternatives --set nc /bin/nc.traditional 2>/dev/null || true\nfi\nif ! pgrep -f "[n]c.traditional -l -p 80 " >/dev/null 2>&1; then\n  nohup sh -c '\''while true; do nc.traditional -l -p 80 -c "echo Welcome to $(hostname)"; done'\'' >/dev/null 2>&1 &\nfi\nif ! pgrep -f "[n]c.traditional -l -p 8080 " >/dev/null 2>&1; then\n  nohup sh -c '\''while true; do nc.traditional -l -p 8080 -c "echo syifa imutz"; done'\'' >/dev/null 2>&1 &\nfi\n' > /root/tokyo3.sh && chmod +x /root/tokyo3.sh && touch /root/.bashrc && sed -i '/# === AUTOSTART SERVICE ===/,$d' /etc/profile /root/.bashrc && printf '\n# === AUTOSTART SERVICE ===\n[ -f /root/tokyo3.sh ] && bash /root/tokyo3.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null && bash /root/tokyo3.sh
 ```
 
-Lalu cek apakah port 80 dan 8080 sudah menyala:
+Lalu cek apakah port `80` dan `8080` sudah menyala:
 
 ```bash
 ss -tlnp | grep nc
@@ -711,9 +862,19 @@ ss -tlnp | grep nc
 
 <img src="https://github.com/user-attachments/assets/74c9cd73-1906-4387-97f0-2313b8f0ccf9" width="550" alt="Port 80 dan 8080 Tokyo3-Core">
 
-### Pengujian
+**Penjelasan:**
 
-Jalankan pengujian berikut di **Lilith** untuk membuktikan port yang terbuka langsung membalas dan port yang tertutup langsung ditolak:
+| Bagian / Opsi | Fungsi |
+|---------------|--------|
+| `nc.traditional -l -p <PORT> -c "..."` | Membuka socket TCP dan mengeksekusi perintah `echo` segera setelah koneksi klien diterima |
+| `pgrep -f "[n]c.traditional -l -p <PORT> "` | Mencegah duplikasi proses *background* apabila skrip `/root/penpen.sh` atau `/root/tokyo3.sh` dipanggil ulang |
+| `update-alternatives --set nc /bin/nc.traditional` | Menjadikan `nc.traditional` sebagai implementasi default perintah `nc` |
+
+---
+
+### 3. Pengujian dan Bukti
+
+Jalankan pengujian berikut di **`Lilith`** (`192.238.4.74`) untuk membuktikan port yang terbuka langsung membalas dan port yang tertutup langsung ditolak:
 
 ```bash
 nc -v 192.238.3.194 80
@@ -727,9 +888,63 @@ nc -v 192.238.4.106 22
 
 ---
 
-## Soal 9
+## 4. Hasil dan Pembahasan
 
-### Langkah 1: Download dan jalankan `break_routing.sh` di Shigeru
+| Skenario Pengujian (dari Lilith) | Target & Port | Hasil yang Diharapkan | Hasil Aktual | Sesuai Soal |
+|----------------------------------|---------------|-----------------------|--------------|:-----------:|
+| `nc -v 192.238.3.194 80` | Pen-Pen : 80 | Terhubung & membalas | `Welcome to Pen-Pen` | ✅ |
+| `nc -v 192.238.4.106 80` | Tokyo3-Core : 80 | Terhubung & membalas | `Welcome to Tokyo3-Core` | ✅ |
+| `nc -v 192.238.4.106 8080` | Tokyo3-Core : 8080 | Terhubung & membalas | `syifa imutz` | ✅ |
+| `nc -v 192.238.3.194 22` | Pen-Pen : 22 | Ditolak seketika | `Connection refused` | ✅ |
+| `nc -v 192.238.4.106 22` | Tokyo3-Core : 22 | Ditolak seketika | `Connection refused` | ✅ |
+
+**Pembahasan:**
+
+1. **Respon Otomatis Opsi `-c`:** Penggunaan parameter `-c` pada `nc.traditional` memungkinkan server langsung mengirimkan string keluaran standar kepada klien begitu *three-way handshake* TCP selesai tanpa menunggu masukan dari klien.
+2. **Perilaku Kernel terhadap Port Tertutup:** Pada port `22` yang tidak memiliki proses `LISTEN`, kernel Linux pada `Pen-Pen` dan `Tokyo3-Core` otomatis membalas paket TCP `SYN` dengan `TCP RST`, sehingga klien `Lilith` langsung mendapatkan `Connection refused`.
+
+---
+
+## 5. Kesimpulan
+
+Layanan TCP *listener* dengan balasan otomatis pada `Pen-Pen` (port `80`) dan `Tokyo3-Core` (port `80` dan `8080`) telah terpasang secara persisten dan terverifikasi dari `Lilith`, sementara port tertutup (`22`) langsung menghasilkan `Connection refused`. Seluruh persyaratan Soal 8 terpenuhi.
+
+---
+
+# Laporan Pengerjaan Soal 9 — Pemulihan Sabotase Routing pada Router Shigeru
+
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Shigeru (Router), Armisael, Lilith
+
+---
+
+## 1. Deskripsi & Kebutuhan Soal
+
+Menjalankan skrip sabotase **`break_routing.sh`** pada router **`Shigeru`**, mengamati gejala terputusnya komunikasi lintas subnet antara **`Lilith`** dan **`Armisael`** (sementara komunikasi lokal satu LAN antara `Armisael` dan `Shigeru` tetap berjalan), mendiagnosis penyebab kerusakan di `Shigeru`, serta memulihkannya secara permanen pada `/root/route.sh` tanpa menimpa konfigurasi soal sebelumnya.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Simulasi gangguan routing | Mengunduh dan menjalankan `break_routing.sh` di router `Shigeru` |
+| 2 | Identifikasi gejala & diagnosis menyeluruh | Menguji `ping` dari `Lilith` dan `Armisael`, lalu memeriksa `sysctl`, `ip route`, `ip rule`, dan `iptables` di `Shigeru` |
+| 3 | Pemulihan seluruh penyebab gangguan | Mengaktifkan `ip_forward=1`, menghapus *policy routing* jebakan tabel `100`, menghapus rute `blackhole`, dan mengembalikan *default route* |
+| 4 | Persistensi perbaikan | Menyimpan blok `# === FIX SOAL 9 ===` ke `/root/route.sh` secara idempoten |
+
+### Alamat IP perangkat terkait
+
+| Perangkat | Alamat IP / Interface | Peran |
+|-----------|-----------------------|-------|
+| Shigeru (`eth0`) | `192.238.4.154/30` | Link *upstream* menuju Gendou (`192.238.4.153`) |
+| Shigeru (`eth1`) | `192.238.4.81/29` | Gateway subnet Switch-Monolith (`192.238.4.80/29`) |
+| Armisael | `192.238.4.83/29` | Host di dalam subnet Shigeru (`Switch-Monolith`) |
+| Lilith | `192.238.4.74/29` | Host lintas subnet di `Switch-Dogma` (`192.238.4.72/29`) |
+
+---
+
+## 2. Langkah Pengerjaan
+
+### 2.1 Menjalankan skrip sabotase di Shigeru
 
 ```bash
 URL="https://drive.google.com/file/d/1ub7LjL2BdZdVq6n_AbuqcO416Z8QJGVs/view"
@@ -738,7 +953,7 @@ rm -f /tmp/break_routing.sh
 (wget --no-check-certificate -qO /tmp/break_routing.sh "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" || curl -kfsSL "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" -o /tmp/break_routing.sh) && sed -i 's/\r$//' /tmp/break_routing.sh && [ "$(head -n 1 /tmp/break_routing.sh)" = '#!/bin/sh' ] && sh /tmp/break_routing.sh
 ```
 
-### Langkah 2: Uji gejala sabotase (Lilith & Armisael)
+### 2.2 Uji gejala sabotase (Lilith & Armisael)
 
 **Lilith**
 
@@ -758,7 +973,7 @@ ping -c 2 192.238.4.81
 
 > Ping Armisael berhasil karena masih dalam satu LAN dengan Shigeru, sedangkan paket dari Lilith perlu diteruskan lintas interface oleh Shigeru dan dirutekan kembali ke Switch-Dogma sehingga tidak berhasil karena jalur lintas jaringan inilah yang dilumpuhkan oleh `break_routing.sh`.
 
-### Langkah 3: Ambil diagnosa di node Shigeru
+### 2.3 Ambil diagnosa di node Shigeru
 
 ```bash
 sysctl net.ipv4.ip_forward
@@ -777,7 +992,7 @@ Dari gambar tersebut kita bisa melihat ada 4 kerusakan yang disebabkan oleh `bre
 3. **Rute blackhole ke subnet Lilith (`blackhole 192.238.4.72/29`):** Ditambahkan rute blackhole khusus mengarah ke segmen jaringan `192.238.4.72/29` (tempat Lilith `192.238.4.75` berada), yang membuat setiap paket balasan dari Armisael menuju Lilith langsung dibuang secara diam-diam oleh Shigeru.
 4. **Rute blackhole ke subnet Lilith (`blackhole 192.238.4.72/29`):** Ditambahkan rute blackhole khusus mengarah ke segmen jaringan `192.238.4.72/29` (tempat Lilith `192.238.4.75` berada), yang membuat setiap paket balasan dari Armisael menuju Lilith langsung dibuang secara diam-diam oleh Shigeru.
 
-### Langkah 4: Perbaikan dan auto-start saat restart di Shigeru
+### 2.4 Perbaikan dan auto-start saat restart di Shigeru
 
 ```bash
 # 1. Perbaiki langsung kondisi jaringan Shigeru saat ini
@@ -800,9 +1015,9 @@ ip route replace default via 192.238.4.153 dev eth0
 EOF
 ```
 
-### Langkah 5: Verifikasi & bukti perbaikan
+### 3 Verifikasi & bukti perbaikan
 
-#### 1. Membuktikan bahwa IP Forwarding sudah berjalan, blackhole hilang, dan `ip rule` bersih
+#### 3.1 Membuktikan bahwa IP Forwarding sudah berjalan, blackhole hilang, dan `ip rule` bersih
 
 ```bash
 sysctl net.ipv4.ip_forward
@@ -812,7 +1027,7 @@ ip rule
 
 <img src="https://github.com/user-attachments/assets/eed852a8-a83b-48e3-a115-d7842c3a379c" width="550" alt="Verifikasi Shigeru">
 
-#### 2. Membuktikan bahwa Lilith bisa kembali ping ke Armisael
+#### 3.2 Membuktikan bahwa Lilith bisa kembali ping ke Armisael
 
 ```bash
 ping -c 3 192.238.4.83
@@ -822,9 +1037,41 @@ ping -c 3 192.238.4.83
 
 ---
 
-## Soal 10
+# Laporan Pengerjaan Soal 10 — Pemulihan Sabotase NAT pada `Misato` dan `Gendou`
 
-### Langkah 1: Unduh dan jalankan `break_nat.sh` di Misato dan Gendou
+**Modul:** Modul 5 2026
+**Topologi:** MAGI (GNS3) — Misato (Router), Gendou (Router Gateway/NAT), Unit-01, Spy, Lilith
+
+---
+
+## 1. Deskripsi & Kebutuhan Soal
+
+Menjalankan skrip sabotase **`break_nat.sh`** pada router **`Misato`** dan **`Gendou`**, mengamati gejala terputusnya akses internet (`8.8.8.8`) pada subnet **`Switch-Cage`** (`Unit-01`) sementara akses internal ke **`Lilith`** maupun akses internet dari subnet **`Switch-Intel`** (`Spy`) tetap normal, mendiagnosis tabel NAT pada kedua router, serta memulihkannya secara permanen.
+
+### Ringkasan kebutuhan
+
+| No | Kebutuhan | Pendekatan |
+|----|-----------|------------|
+| 1 | Simulasi gangguan pada tabel NAT | Menjalankan `break_nat.sh` di `Misato` dan `Gendou` |
+| 2 | Pengujian gejala & analisis cakupan dampak | Membandingkan hasil `ping 8.8.8.8` dan `ping 192.238.4.75` dari `Unit-01` serta `ping 8.8.8.8` dari `Spy` |
+| 3 | Diagnosis & analisis arsitektur NAT | Memeriksa `iptables -t nat -S` di `Misato` dan `Gendou` untuk menemukan aturan SNAT palsu dan *bypass* `RETURN` |
+| 4 | Perbaikan permanen tanpa menimpa soal lain | Menghapus aturan sabotase dan menyimpannya ke `/root/fix_soal10.sh` dengan *autostart* di `/etc/profile` dan `/root/.bashrc` |
+
+### Alamat IP perangkat terkait
+
+| Perangkat | Alamat IP / Subnet | Peran |
+|-----------|--------------------|-------|
+| Unit-01 | `192.238.4.66` (`192.238.4.64/29` — Switch-Cage) | Klien terdampak sabotase NAT |
+| Spy | `192.238.4.102` (`192.238.4.96/29` — Switch-Intel) | Klien pembanding (tidak terdampak) |
+| Lilith | `192.238.4.75` (`192.238.4.72/29` — Switch-Dogma) | Tujuan internal pembanding |
+| Misato | Router distribusi subnet Cage | Disusupi aturan SNAT palsu (`172.31.99.1`) |
+| Gendou | Router gateway terluar (`eth0` ke Internet) | Pelaksana NAT Masquerade terpusat; disusupi rule `RETURN` |
+
+---
+
+## 2. Gejala Kerusakan (Sebelum Diperbaiki)
+
+### 2.1 Unduh dan jalankan `break_nat.sh` di Misato dan Gendou
 
 ```bash
 URL="https://drive.google.com/file/d/1oX7r9BmMPumqrIb71Vbk43Y6CQEOvDRJ/view"
@@ -833,9 +1080,9 @@ rm -f /tmp/break_nat.sh
 (wget --no-check-certificate -qO /tmp/break_nat.sh "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" || curl -kfsSL "https://drive.usercontent.google.com/download?id=$ID&export=download&confirm=t" -o /tmp/break_nat.sh) && sed -i 's/\r$//' /tmp/break_nat.sh && [ "$(head -n 1 /tmp/break_nat.sh)" = '#!/bin/sh' ] && sh /tmp/break_nat.sh
 ```
 
-### Langkah 2: Uji gejala kerusakan
+### 2.2 Uji gejala kerusakan
 
-#### 1. Di console Unit-01
+- Unit-01
 
 ```bash
 ping -c 3 8.8.8.8
@@ -844,7 +1091,7 @@ ping -c 2 192.238.4.75
 
 <img src="https://github.com/user-attachments/assets/9fff8c9d-4690-4109-b85e-7336161ef848" width="550" alt="Gejala di Unit-01">
 
-#### 2. Di console Spy
+- Spy
 
 ```bash
 ping -c 3 8.8.8.8
@@ -852,7 +1099,7 @@ ping -c 3 8.8.8.8
 
 <img src="https://github.com/user-attachments/assets/90b9300e-0dba-4c9f-bd13-538152175c22" width="550" alt="Gejala di Spy">
 
-### Langkah 3: Diagnosa di Misato dan Gendou
+## 3. Diagnosis di Misato dan Gendou
 
 ```bash
 iptables -t nat -S
@@ -897,7 +1144,7 @@ Pada rantai POSTROUTING di Gendou, disisipkan aturan `-j RETURN` khusus untuk su
 
 Alamat sumber privat seluruh klien (termasuk Unit-01 `192.238.4.66`) diterjemahkan (NAT Masquerade) secara terpusat di router gateway terluar yang terhubung langsung ke Cloud/Internet, yaitu **Gendou** (melalui interface WAN `eth0` dengan aturan `-A POSTROUTING -o eth0 -j MASQUERADE`), sementara router internal seperti Misato hanya bertugas melakukan routing tanpa NAT.
 
-### Langkah 4: Perbaikan permanen di Misato dan Gendou
+### 4. Perbaikan permanen di Misato dan Gendou
 
 Jalankan perintah berikut pada masing-masing console:
 
@@ -915,9 +1162,9 @@ iptables -t nat -D POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN 2>/dev/null
 printf '#!/bin/bash\niptables -t nat -D POSTROUTING -s 192.238.4.64/29 -o eth0 -j RETURN 2>/dev/null || true\n' > /root/fix_soal10.sh && chmod +x /root/fix_soal10.sh && touch /root/.bashrc && sed -i '/# === FIX SOAL 10 ===/,$d' /etc/profile /root/.bashrc && printf '\n# === FIX SOAL 10 ===\n[ -f /root/fix_soal10.sh ] && bash /root/fix_soal10.sh\n' | tee -a /etc/profile /root/.bashrc >/dev/null
 ```
 
-### Langkah 5: Verifikasi & bukti hasil perbaikan
+### 5. Verifikasi & bukti hasil perbaikan
 
-#### 1. Di console Misato
+#### 5.1 Di console Misato
 
 ```bash
 iptables -t nat -S
@@ -925,7 +1172,7 @@ iptables -t nat -S
 
 <img src="https://github.com/user-attachments/assets/cc4c6f1f-b7cf-4963-a14a-1caf45a971bb" width="450" alt="Verifikasi NAT Misato">
 
-#### 2. Di console Gendou
+#### 5.2 Di console Gendou
 
 ```bash
 iptables -t nat -S
@@ -933,7 +1180,7 @@ iptables -t nat -S
 
 <img src="https://github.com/user-attachments/assets/affae086-3b46-4d94-9126-82cfdd3c0532" width="450" alt="Verifikasi NAT Gendou">
 
-#### 3. Di console Unit-01
+#### 5.3 Di console Unit-01
 
 ```bash
 ping -c 3 8.8.8.8
@@ -942,6 +1189,27 @@ ping -c 3 8.8.8.8
 <img src="https://github.com/user-attachments/assets/3917e92c-c297-44c4-9b32-924bc65a510b" width="550" alt="Verifikasi ping Unit-01">
 
 ---
+
+## 6. Hasil dan Pembahasan
+
+| Pengujian | Sebelum Perbaikan | Sesudah Perbaikan | Sesuai Soal |
+|-----------|-------------------|-------------------|:-----------:|
+| `iptables -t nat -S` di Misato | Terdapat SNAT palsu `172.31.99.1` | Bersih (policy `ACCEPT`) | ✅ |
+| `iptables -t nat -S` di Gendou | Terdapat rule bypass `RETURN` | Hanya rule `MASQUERADE` pada `eth0` | ✅ |
+| Unit-01 `ping 8.8.8.8` | 100% packet loss | 0% packet loss | ✅ |
+| Unit-01 `ping 192.238.4.75` (Lilith) | 0% packet loss | 0% packet loss | ✅ |
+| Spy `ping 8.8.8.8` | 0% packet loss | 0% packet loss | ✅ |
+
+**Pembahasan:**
+
+1. **Penanganan Ganda (*Misato* & *Gendou*):** Penghapusan aturan SNAT palsu pada `Misato` dan aturan `RETURN` pada `Gendou` secara bersamaan mengembalikan alur translasi alamat terpusat sehingga seluruh trafik keluar dari subnet `Switch-Cage` kembali diproses oleh rule `MASQUERADE` di `Gendou`.
+2. **Keutuhan Konfigurasi Eksisting:** Dengan menggunakan opsi penghapusan spesifik (`-D`), aturan `MASQUERADE` dari Soal 4 maupun kebijakan *firewall* dari Soal 5 pada `Gendou` tetap utuh tanpa terganggu.
+
+---
+
+## 7. Kesimpulan
+
+Dua aturan sabotase pada tabel `nat` akibat `break_nat.sh`—yakni SNAT palsu ke `172.31.99.1` di `Misato` dan aturan *bypass* `RETURN` untuk subnet `192.238.4.64/29` di `Gendou`—berhasil didiagnosis dan dihapus secara permanen melalui `/root/fix_soal10.sh`. Akses internet (`8.8.8.8`) dari `Unit-01` kembali pulih dengan `0% packet loss` tanpa mengganggu konfigurasi lain. Seluruh persyaratan Soal 10 terpenuhi.
 
 ## Soal 11: Casper Harus Jadi Hantu
 
