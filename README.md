@@ -833,7 +833,7 @@ Hasil yang diharapkan: **berhasil / 0% packet loss**, lalu cek counter paket yan
 
 ```bash
 ping -c 3 192.238.4.59
-ping -c 3 192.238.4.74
+ping -c 3 192.238.4.75
 iptables -L INPUT -n -v
 ```
 
@@ -841,30 +841,26 @@ iptables -L INPUT -n -v
 
 ```
 PING 192.238.4.59 (192.238.4.59) 56(84) bytes of data.
-64 bytes from 192.238.4.59: icmp_seq=1 ttl=64 time=0.580 ms
-64 bytes from 192.238.4.59: icmp_seq=2 ttl=64 time=0.208 ms
-64 bytes from 192.238.4.59: icmp_seq=3 ttl=64 time=0.331 ms
+64 bytes from 192.238.4.59: icmp_seq=1 ttl=64 time=1.05 ms
+64 bytes from 192.238.4.59: icmp_seq=2 ttl=64 time=0.234 ms
+64 bytes from 192.238.4.59: icmp_seq=3 ttl=64 time=0.207 ms
 
 --- 192.238.4.59 ping statistics ---
-3 packets transmitted, 3 received, 0% packet loss, time 2298ms
-rtt min/avg/max/mdev = 0.208/0.373/0.580/0.154 ms
+3 packets transmitted, 3 received, 0% packet loss, time 2011ms
+rtt min/avg/max/mdev = 0.207/0.498/1.053/0.392 ms
+PING 192.238.4.75 (192.238.4.75) 56(84) bytes of data.
+64 bytes from 192.238.4.75: icmp_seq=1 ttl=62 time=0.833 ms
+64 bytes from 192.238.4.75: icmp_seq=2 ttl=62 time=0.382 ms
+64 bytes from 192.238.4.75: icmp_seq=3 ttl=62 time=0.553 ms
 
-PING 192.238.4.74 (192.238.4.74) 56(84) bytes of data.
-64 bytes from 192.238.4.74: icmp_seq=1 ttl=62 time=1.28 ms
-64 bytes from 192.238.4.74: icmp_seq=2 ttl=62 time=0.816 ms
-64 bytes from 192.238.4.74: icmp_seq=3 ttl=62 time=0.565 ms
-
---- 192.238.4.74 ping statistics ---
-3 packets transmitted, 3 received, 0% packet loss, time 2271ms
-rtt min/avg/max/mdev = 0.565/0.886/1.277/0.294 ms
-
-Chain INPUT (policy ACCEPT 6 packets, 504 bytes)
- pkts bytes target  prot opt in  out  source      destination
-    6   504 DROP    icmp --  *   *    0.0.0.0/0   0.0.0.0/0    icmptype 8
+--- 192.238.4.75 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2045ms
+rtt min/avg/max/mdev = 0.382/0.589/0.833/0.185 ms
+Chain INPUT (policy DROP 0 packets, 0 bytes)
+pkts bytes target     prot opt in     out     source               destination
 ```
-
+<img width="482" height="263" alt="Screenshot 2026-11-27 at 09 59 02" src="https://github.com/user-attachments/assets/61d4ec8d-2e3e-47ec-8308-7954bc916cf9" />
 ![Ping Casper ke Balthasar & Lilith dan counter iptables](9c34eb2e-image.png)
-<img width="408" height="241" alt="Screenshot 2026-11-25 at 07 49 14" src="https://github.com/user-attachments/assets/a89070cb-9dce-408f-b561-8b278b4232eb" />
 
 
 ---
@@ -1431,6 +1427,7 @@ Chain INPUT (policy ACCEPT 3 packets, 252 bytes)
 ## 5. Kesimpulan
 
 Dengan menambahkan blok firewall Soal 13 pada `/root/balthasar.sh` berupa rule `ACCEPT` per IP untuk Casper dan seluruh Pilot, diikuti rule `REJECT --reject-with tcp-reset` pada TCP 5000 dan 5001, akses ke Balthasar berhasil dibatasi. Unit-01 dapat menyambung, sedangkan Lilith dan Melchior langsung ditolak. Policy default `ACCEPT` menjaga lalu lintas lain, termasuk ping ke `8.8.8.8`, tetap berjalan. Seluruh persyaratan Soal 13 terpenuhi.
+
 # Laporan Pengerjaan Soal 14 — Jam Kunjungan Sang Pinguin
 
 **Modul:** Modul 5 2026
@@ -1747,331 +1744,6 @@ Setelah dikembalikan, Spy tetap gagal karena kelompok Dummy System ditolak di lu
 
 Dengan menyimpan jadwal sebagai variabel (`PILOT_START`, `PILOT_STOP`, `PILOT_DAYS`, `STAF_START`, `STAF_STOP`) di awal `/root/penpen.sh` dan menerapkan rule `iptables -m time` pada chain `PENPEN_ACL`, akses ping dan TCP 80 ke Pen-Pen dapat dibatasi sesuai jadwal tanpa mengubah jam komputer. Unit-01 (Pilot) dan Lilith (Staf) hanya berhasil saat jadwal cocok, sedangkan Spy (Terduga Dummy System) selalu ditolak. Setelah pengujian, variabel dikembalikan ke nilai asli sehingga konfigurasi akhir sesuai spesifikasi soal.
 
-# Laporan Pengerjaan Soal 14 — Jam Kunjungan Sang Pinguin
-
-**Modul:** Modul 5 2026
-**Topologi:** MAGI (GNS3) — Pen-Pen, Unit-01, Lilith, Spy
-
----
-
-## 1. Soal
-
-> **Jam kunjungan sang pinguin:** Pen-Pen, pinguin Misato, menyimpan sesuatu yang bikin banyak orang penasaran. Ia hanya boleh dihubungi sesuai jadwal di bawah. Jadwal berlaku untuk **ping dan TCP 80** ke Pen-Pen, dari mana pun asalnya. **Jam komputer tidak boleh diubah.**
-
-| Kelompok | Jadwal (WIB) | Keterangan |
-|----------|--------------|------------|
-| Pilot | 08.00 sampai 16.00 | Hanya Senin sampai Jumat |
-| Staf Geofront | 17.00 sampai 23.00 | Setiap hari |
-| Terduga Dummy System | Tidak pernah | Selalu ditolak |
-| Lainnya | Bebas | Tanpa batasan |
-
-> Simpan jadwal sebagai variabel di awal script Pen-Pen, bernama `PILOT_START`, `PILOT_STOP`, `PILOT_DAYS`, `STAF_START`, dan `STAF_STOP`. Untuk uji, ubah variabel itu sampai jadwalnya **cocok** dengan jam sekarang, lalu sampai **tidak cocok**. Ingat, iptables membaca **jam UTC, 7 jam lebih lambat dari WIB**. Tunjukkan hasil ping dari Unit-01, Lilith, dan Spy pada kedua kondisi.
-
-### Ringkasan kebutuhan
-
-| No | Kebutuhan | Pendekatan |
-|----|-----------|------------|
-| 1 | Jadwal berlaku untuk ping dan TCP 80 | Hanya ICMP `echo-request` dan TCP port 80 yang diarahkan ke chain khusus `PENPEN_ACL` |
-| 2 | Jadwal berbasis waktu | Modul `-m time` (`--timestart`, `--timestop`, `--weekdays`) |
-| 3 | Jam komputer tidak boleh diubah | Jadwal diubah lewat **variabel di script**, bukan lewat jam sistem |
-| 4 | Jadwal dalam UTC | WIB dikurangi 7 jam |
-| 5 | Lainnya bebas | Node yang tidak terdaftar tidak cocok rule apa pun, kembali ke policy `ACCEPT` |
-
-### Konversi jadwal WIB ke UTC
-
-| Kelompok | WIB | UTC (`--timestart` / `--timestop`) | Hari |
-|----------|-----|------------------------------------|------|
-| Pilot | 08.00 – 16.00 | `01:00` – `09:00` | `Mon,Tue,Wed,Thu,Fri` |
-| Staf Geofront | 17.00 – 23.00 | `10:00` – `16:00` | Setiap hari |
-
-### Alamat IP
-
-| Perangkat / Kelompok | IP | Peran |
-|----------------------|----|-------|
-| Pen-Pen | `192.238.3.194` | Target yang dijaga jadwal |
-| Pilot (termasuk Unit-01) | `192.238.4.66`, `192.238.4.67`, `192.238.4.68`, `192.238.3.130` | Jadwal Pilot |
-| Staf Geofront (termasuk Lilith) | `192.238.4.74`, `192.238.4.75` | Jadwal Staf |
-| Terduga Dummy System (termasuk Spy) | `192.238.4.50`, `192.238.4.51`, `192.238.4.102` | Selalu ditolak |
-
----
-
-## 2. Langkah 1 — Memasang Script Jadwal di `/root/penpen.sh`
-
-Script `/root/penpen.sh` ditulis ulang dengan kelima variabel jadwal di baris paling atas. Konfigurasi IP (`/root/ip.sh`) dan listener port 80 dari Soal 8 tetap dipertahankan. Aturan firewall dibuat dalam chain khusus `PENPEN_ACL`.
-
-```bash
-cat << 'EOF' > /root/penpen.sh
-#!/bin/bash
-
-# === VARIABEL JADWAL KUNJUNGAN (UTC = WIB - 7 JAM) ===
-PILOT_START="01:00"
-PILOT_STOP="09:00"
-PILOT_DAYS="Mon,Tue,Wed,Thu,Fri"
-STAF_START="10:00"
-STAF_STOP="16:00"
-
-[ -f /root/ip.sh ] && sh /root/ip.sh
-
-# (Bagian instalasi paket iptables/netcat-traditional dan listener TCP 80
-#  "Welcome to $(hostname)" dari Soal 8 tetap dipertahankan)
-
-# === SOAL 14: FIREWALL JADWAL KUNJUNGAN ===
-iptables -F
-iptables -X
-iptables -P INPUT ACCEPT
-iptables -P FORWARD ACCEPT
-iptables -P OUTPUT ACCEPT
-
-iptables -N PENPEN_ACL
-
-# Arahkan hanya ICMP echo-request (ping) dan TCP 80 masuk ke chain PENPEN_ACL
-iptables -A INPUT -p icmp --icmp-type echo-request -j PENPEN_ACL
-iptables -A INPUT -p tcp --dport 80 -j PENPEN_ACL
-
-# 1. Kelompok Pilot (08.00 - 16.00 WIB / 01:00 - 09:00 UTC, Senin - Jumat)
-for IP in 192.238.4.66 192.238.4.67 192.238.4.68 192.238.3.130; do
-  iptables -A PENPEN_ACL -s $IP -m time --timestart $PILOT_START --timestop $PILOT_STOP --weekdays $PILOT_DAYS -j ACCEPT
-  iptables -A PENPEN_ACL -s $IP -j DROP
-done
-
-# 2. Kelompok Staf Geofront (17.00 - 23.00 WIB / 10:00 - 16:00 UTC, Setiap hari)
-for IP in 192.238.4.74 192.238.4.75; do
-  iptables -A PENPEN_ACL -s $IP -m time --timestart $STAF_START --timestop $STAF_STOP -j ACCEPT
-  iptables -A PENPEN_ACL -s $IP -j DROP
-done
-
-# 3. Kelompok Terduga Dummy System (Selalu ditolak)
-for IP in 192.238.4.50 192.238.4.51 192.238.4.102; do
-  iptables -A PENPEN_ACL -s $IP -j DROP
-done
-EOF
-
-chmod +x /root/penpen.sh
-bash /root/penpen.sh
-```
-
-<!-- CEK: pada screenshot, baris rule Pilot/Staf terpotong di layar. Bagian "--weekdays $PILOT_DAYS -j ACCEPT" dan "-j ACCEPT" pada rule Staf direkonstruksi dari logika soal. Samakan dengan script aslimu bila berbeda. -->
-<img width="365" height="244" alt="Screenshot 2026-11-25 at 16 48 31" src="https://github.com/user-attachments/assets/a59e8df6-885e-4ad4-a27f-973c43913a7a" />
-
-![Script jadwal pada Pen-Pen](8aa22f60-image.png)
-
-**Penjelasan:**
-
-| Bagian | Fungsi |
-|--------|--------|
-| Variabel `PILOT_*` dan `STAF_*` | Jadwal disimpan di awal script (sesuai permintaan soal) sehingga uji cukup dengan mengubah variabel, tanpa mengubah jam sistem |
-| `iptables -N PENPEN_ACL` | Membuat chain khusus agar aturan jadwal rapi dan terpisah |
-| `-p icmp --icmp-type echo-request -j PENPEN_ACL` dan `-p tcp --dport 80 -j PENPEN_ACL` | Hanya ping dan TCP 80 yang dikenai jadwal; lalu lintas lain tidak tersentuh |
-| `-m time --timestart ... --timestop ... --weekdays ... -j ACCEPT` | Mengizinkan sumber pada rentang jam UTC (dan hari) yang ditentukan |
-| `-s $IP -j DROP` tepat setelah `ACCEPT` | Di luar jadwal, paket dari IP tersebut dibuang |
-| Kelompok Dummy: langsung `DROP` | Selalu ditolak tanpa syarat waktu |
-| Policy `INPUT ACCEPT` | IP lain ("Lainnya") tidak cocok rule apa pun sehingga bebas |
-
-**Urutan rule penting:** `ACCEPT` bersyarat waktu harus berada **sebelum** `DROP` untuk IP yang sama. iptables berhenti pada kecocokan pertama.
-
----
-
-## 3. Langkah 2 — Uji Kondisi 1: Jadwal **Cocok** dengan Jam Sekarang
-
-### 3.1 Cek jam UTC dan hari saat ini di Pen-Pen
-
-```bash
-date -u
-```
-
-**Hasil:**
-
-```
-Wed Nov 25 13:45:22 UTC 2026
-```
-<img width="364" height="28" alt="Screenshot 2026-11-25 at 16 48 51" src="https://github.com/user-attachments/assets/82308f47-8daf-4391-9e99-369b56062405" />
-
-![date -u di Pen-Pen](c327dc3f-image.png)
-
-<!-- CEK: date -u menunjukkan 13:45 UTC, sedangkan rentang yang diset di bawah adalah 08:00-11:00 (tidak mencakup 13:45). Pastikan rentang yang kamu pakai saat uji kondisi 1 benar-benar mencakup jam UTC container (mis. 12:00-15:00), atau jalankan ulang date -u tepat sebelum pengujian dan ganti nilai di bawah. -->
-
-### 3.2 Mengubah variabel agar cocok dengan jam UTC sekarang
-
-Variabel Pilot dan Staf diubah ke rentang yang mencakup jam UTC container. `PILOT_DAYS` ditambah `Sat,Sun` agar hari saat pengujian pasti termasuk.
-
-```bash
-sed -i 's/^PILOT_START=.*/PILOT_START="08:00"/' /root/penpen.sh
-sed -i 's/^PILOT_STOP=.*/PILOT_STOP="11:00"/' /root/penpen.sh
-sed -i 's/^PILOT_DAYS=.*/PILOT_DAYS="Mon,Tue,Wed,Thu,Fri,Sat,Sun"/' /root/penpen.sh
-sed -i 's/^STAF_START=.*/STAF_START="08:00"/' /root/penpen.sh
-sed -i 's/^STAF_STOP=.*/STAF_STOP="11:00"/' /root/penpen.sh
-bash /root/penpen.sh
-head -n 10 /root/penpen.sh
-```
-
-**Hasil `head -n 10`:**
-
-```
-#!/bin/bash
-
-# === VARIABEL JADWAL KUNJUNGAN (UTC = WIB - 7 JAM) ===
-PILOT_START="08:00"
-PILOT_STOP="11:00"
-PILOT_DAYS="Mon,Tue,Wed,Thu,Fri,Sat,Sun"
-STAF_START="08:00"
-STAF_STOP="11:00"
-
-[ -f /root/ip.sh ] && sh /root/ip.sh
-```
-<img width="365" height="155" alt="Screenshot 2026-11-25 at 16 52 29" src="https://github.com/user-attachments/assets/fbb1dcd6-9f24-4302-a3df-2d401d9f24a5" />
-
-![Mengubah variabel jadwal agar cocok](79f4533c-image.png)
-
-### 3.3 Pengujian dari tiga node (harus berhasil, berhasil, gagal)
-
-**Unit-01 (`192.238.4.66`, Pilot) — harus berhasil:**
-
-```bash
-ping -c 3 -W 1 192.238.3.194
-nc -v -w 2 192.238.3.194 80
-```
-
-```
-3 packets transmitted, 3 received, 0% packet loss, time 2224ms
-Connection to 192.238.3.194 80 port [tcp/http] succeeded!
-Welcome to Pen-Pen
-```
-<img width="242" height="90" alt="Screenshot 2026-11-25 at 17 03 41" src="https://github.com/user-attachments/assets/d3d38e03-f7a6-4121-bd5f-af91c474a6d8" />
-
-![Unit-01: ping dan nc ke Pen-Pen berhasil](cb07a5d4-image.png)
-
-**Lilith (`192.238.4.74`, Staf) — harus berhasil:**
-
-```bash
-ping -c 3 -W 1 192.238.3.194
-nc -v -w 2 192.238.3.194 80
-```
-
-```
-3 packets transmitted, 3 received, 0% packet loss, time 2224ms
-Connection to 192.238.3.194 80 port [tcp/http] succeeded!
-Welcome to Pen-Pen
-```
-<img width="242" height="90" alt="Screenshot 2026-11-25 at 17 03 53" src="https://github.com/user-attachments/assets/9c3ff269-5264-4474-bb02-58a993d1ce88" />
-
-![Lilith: ping dan nc ke Pen-Pen berhasil](cf636225-image.png)
-
-**Spy (`192.238.4.102`, Terduga Dummy System) — harus gagal (selalu ditolak):**
-
-```bash
-ping -c 3 -W 1 192.238.3.194
-```
-
-```
-3 packets transmitted, 0 received, 100% packet loss, time 2297ms
-```
-<img width="242" height="38" alt="Screenshot 2026-11-25 at 17 13 43" src="https://github.com/user-attachments/assets/ccfda51f-f254-4def-9768-50aaeb42b78d" />
-
-![Spy: ping ke Pen-Pen gagal (kondisi 1)](abb9836f-image.png)
-
----
-
-## 4. Langkah 3 — Uji Kondisi 2: Jadwal **Tidak Cocok** dengan Jam Sekarang
-
-### 4.1 Menggeser variabel ke jam di luar jam UTC sekarang
-
-```bash
-sed -i 's/^PILOT_START=.*/PILOT_START="13:00"/' /root/penpen.sh
-sed -i 's/^PILOT_STOP=.*/PILOT_STOP="15:00"/' /root/penpen.sh
-sed -i 's/^STAF_START=.*/STAF_START="13:00"/' /root/penpen.sh
-sed -i 's/^STAF_STOP=.*/STAF_STOP="15:00"/' /root/penpen.sh
-bash /root/penpen.sh
-head -n 10 /root/penpen.sh
-```
-
-<!-- CEK: rentang 13:00-15:00 adalah contoh dari petunjuk. Karena date -u di screenshotmu 13:45, rentang ini justru MENCAKUP jam sekarang. Pastikan nilai yang kamu pakai benar-benar di luar jam UTC container (mis. 01:00-03:00), lalu samakan di sini. -->
-
-### 4.2 Pengujian ulang dari tiga node
-
-**Unit-01 (`192.238.4.66`) — sekarang harus gagal:**
-
-```bash
-ping -c 3 -W 1 192.238.3.194
-```
-<img width="241" height="39" alt="Screenshot 2026-11-25 at 17 20 38" src="https://github.com/user-attachments/assets/bf1a49b4-2424-42ce-a2be-65157098bd8b" />
-
-> Tambahkan screenshot Unit-01 (100% packet loss) di sini. Screenshot ini belum ada di foto yang kamu kirim.
-
-**Lilith (`192.238.4.74`) — sekarang harus gagal:**
-
-```bash
-ping -c 3 -W 1 192.238.3.194
-```
-
-```
-3 packets transmitted, 0 received, 100% packet loss, time 2307ms
-```
-<img width="243" height="50" alt="Screenshot 2026-11-25 at 17 04 38" src="https://github.com/user-attachments/assets/9e0e56e4-4209-4048-ac6c-344f556acb53" />
-
-![Lilith: ping ke Pen-Pen gagal (kondisi 2)](ad8f518e-image.png)
-
-**Spy (`192.238.4.102`) — tetap gagal:**
-
-```bash
-ping -c 3 -W 1 192.238.3.194
-```
-
-```
-3 packets transmitted, 0 received, 100% packet loss, time 2313ms
-```
-<img width="242" height="38" alt="Screenshot 2026-11-25 at 17 13 43" src="https://github.com/user-attachments/assets/958b09bc-e388-4bda-8359-5e23400dab34" />
-
-![Spy: ping ke Pen-Pen tetap gagal (kondisi 2)](9c3e01b3-image.png)
-
----
-
-## 5. Langkah 4 — Mengembalikan ke Jadwal Asli Soal
-
-Setelah bukti kedua kondisi diambil, kelima variabel dikembalikan ke nilai asli sesuai spesifikasi soal agar konfigurasi akhir Pen-Pen tetap valid.
-
-```bash
-sed -i 's/^PILOT_START=.*/PILOT_START="01:00"/' /root/penpen.sh
-sed -i 's/^PILOT_STOP=.*/PILOT_STOP="09:00"/' /root/penpen.sh
-sed -i 's/^PILOT_DAYS=.*/PILOT_DAYS="Mon,Tue,Wed,Thu,Fri"/' /root/penpen.sh
-sed -i 's/^STAF_START=.*/STAF_START="10:00"/' /root/penpen.sh
-sed -i 's/^STAF_STOP=.*/STAF_STOP="16:00"/' /root/penpen.sh
-bash /root/penpen.sh
-iptables -S
-```
-
-Setelah dikembalikan, Spy tetap gagal karena kelompok Dummy System ditolak di luar jadwal apa pun:
-
-```
-3 packets transmitted, 0 received, 100% packet loss, time 2297ms
-```
-<img width="243" height="50" alt="Screenshot 2026-11-25 at 17 08 33" src="https://github.com/user-attachments/assets/e6515deb-9167-4043-ae49-e676b4706fca" />
-
-![Spy: ping tetap gagal setelah jadwal dikembalikan](0e73df0f-image.png)
-
----
-
-## 6. Hasil dan Pembahasan
-
-| Node | Kelompok | Kondisi 1 (jadwal cocok) | Kondisi 2 (jadwal tidak cocok) | Sesuai Soal |
-|------|----------|--------------------------|--------------------------------|:-----------:|
-| Unit-01 `192.238.4.66` | Pilot | Ping 0% loss, `nc` port 80 berhasil (`Welcome to Pen-Pen`) | Gagal (100% packet loss) | ✅ |
-| Lilith `192.238.4.74` | Staf Geofront | Ping 0% loss, `nc` port 80 berhasil (`Welcome to Pen-Pen`) | Gagal (100% packet loss) | ✅ |
-| Spy `192.238.4.102` | Terduga Dummy System | Gagal (100% packet loss) | Gagal (100% packet loss) | ✅ |
-
-**Pembahasan:**
-
-1. **Jadwal diuji tanpa mengubah jam komputer.** Soal melarang jam sistem diubah, sehingga kondisi "cocok" dan "tidak cocok" dibuat dengan menggeser variabel `PILOT_*` dan `STAF_*` di awal script, lalu menjalankan ulang `penpen.sh`.
-2. **Jadwal berbasis UTC.** Modul `-m time` pada iptables membaca jam UTC. Karena WIB = UTC + 7, Pilot 08.00–16.00 WIB menjadi `01:00`–`09:00` UTC dan Staf 17.00–23.00 WIB menjadi `10:00`–`16:00` UTC.
-3. **Hanya ping dan TCP 80 yang dibatasi.** Chain `PENPEN_ACL` hanya dipanggil untuk ICMP `echo-request` dan TCP port 80, sehingga lalu lintas lain ke Pen-Pen tetap normal.
-4. **Pilot dan Staf mengikuti jadwal.** Pada kondisi 1, Unit-01 (Pilot) dan Lilith (Staf) dapat ping dan membuka TCP 80. Pada kondisi 2, keduanya mengenai `DROP` dan ping gagal 100%.
-5. **Dummy System selalu ditolak.** Spy (`192.238.4.102`) selalu gagal pada kedua kondisi karena rule-nya adalah `DROP` tanpa syarat waktu.
-6. **Node lain bebas.** Node yang tidak terdaftar tidak cocok rule di `PENPEN_ACL` dan kembali ke policy `INPUT ACCEPT`.
-
----
-
-## 7. Kesimpulan
-
-Dengan menyimpan jadwal sebagai variabel (`PILOT_START`, `PILOT_STOP`, `PILOT_DAYS`, `STAF_START`, `STAF_STOP`) di awal `/root/penpen.sh` dan menerapkan rule `iptables -m time` pada chain `PENPEN_ACL`, akses ping dan TCP 80 ke Pen-Pen dapat dibatasi sesuai jadwal tanpa mengubah jam komputer. Unit-01 (Pilot) dan Lilith (Staf) hanya berhasil saat jadwal cocok, sedangkan Spy (Terduga Dummy System) selalu ditolak. Setelah pengujian, variabel dikembalikan ke nilai asli sehingga konfigurasi akhir sesuai spesifikasi soal.
 
 # Laporan Pengerjaan Soal 15 — Banjir Ping di Pusat Komando
 
@@ -2238,16 +1910,16 @@ ping -i 3 -c 5 192.238.4.106
 ### 3.5 Tokyo3-Core — ping keluar tidak ikut terbatasi
 
 ```bash
-ping -i 0.1 -c 15 192.238.4.74
+ping -i 0.1 -c 15 192.238.4.75
 ```
 
 **Hasil:**
 
 ```
-15 packets transmitted, 15 received, 0% packet loss, time 1579ms
-rtt min/avg/max/mdev = 0.625/1.116/2.402/0.465 ms
+15 packets transmitted, 15 received, 0% packet loss, time 1412ms
+rtt min/avg/max/mdev = 0.847/1.240/1.786/0.298 ms
 ```
-<img width="479" height="278" alt="Screenshot 2026-11-25 at 17 32 17" src="https://github.com/user-attachments/assets/7d6b01e4-770a-490e-8499-0c1300053e01" />
+<img width="360" height="216" alt="Screenshot 2026-11-27 at 10 09 06" src="https://github.com/user-attachments/assets/f65e3c2f-12c8-445a-bac2-e71b92e7da27" />
 
 ![Tokyo3-Core: ping keluar rapat ke Lilith, 0% packet loss](b10b4cd6-image.png)
 
@@ -2927,24 +2599,30 @@ ping -c 3 -W 1 192.238.4.82
 ### 3.4 Zeruel (`192.238.4.82`) — node dalam zona tetap bisa memulai koneksi ke luar (Lilith dan 8.8.8.8)
 
 ```bash
-ping -c 3 192.238.4.74
+ping -c 3 192.238.4.75
 ping -c 3 8.8.8.8
 ```
 
 **Hasil:**
 
 ```
-64 bytes from 192.238.4.74: icmp_seq=1 ttl=60 time=1.73 ms
-64 bytes from 192.238.4.74: icmp_seq=2 ttl=60 time=0.913 ms
-64 bytes from 192.238.4.74: icmp_seq=3 ttl=60 time=0.836 ms
-3 packets transmitted, 3 received, 0% packet loss, time 2223ms
+64 bytes from 192.238.4.75: icmp_seq=1 ttl=60 time=1.79 ms
+64 bytes from 192.238.4.75: icmp_seq=2 ttl=60 time=1.04 ms
+64 bytes from 192.238.4.75: icmp_seq=3 ttl=60 time=1.17 ms
 
-64 bytes from 8.8.8.8: icmp_seq=1 ttl=110 time=20.0 ms
-64 bytes from 8.8.8.8: icmp_seq=2 ttl=110 time=19.8 ms
-64 bytes from 8.8.8.8: icmp_seq=3 ttl=110 time=19.9 ms
-3 packets transmitted, 3 received, 0% packet loss, time 2218ms
+--- 192.238.4.75 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2001ms
+rtt min/avg/max/mdev = 1.043/1.335/1.794/0.328 ms
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=110 time=21.7 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=110 time=22.6 ms
+64 bytes from 8.8.8.8: icmp_seq=3 ttl=110 time=22.4 ms
+
+--- 8.8.8.8 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2002ms
+rtt min/avg/max/mdev = 21.704/22.213/22.574/0.370 ms
 ```
-<img width="361" height="192" alt="Screenshot 2026-11-26 at 10 10 32" src="https://github.com/user-attachments/assets/f71e8fc7-dedc-44b1-a198-3dce16f9aa06" />
+<img width="398" height="191" alt="Screenshot 2026-11-27 at 10 14 14" src="https://github.com/user-attachments/assets/57842b2c-0ba0-4c91-a558-f54090a9c283" />
 
 ![Zeruel: ping ke Lilith dan 8.8.8.8 berhasil](5561e8cc-image.png)
 
@@ -3308,7 +2986,7 @@ default via 192.238.4.153 dev eth0
 ping -c 3 8.8.8.8
 
 # Uji konektivitas antar-zona internal (ke Lilith)
-ping -c 3 192.238.4.74
+ping -c 3 192.238.4.75
 ```
 
 **Hasil:**
@@ -3324,7 +3002,7 @@ ping -c 3 192.238.4.74
 64 bytes from 192.238.4.74: icmp_seq=3 ttl=60 time=1.02 ms
 3 packets transmitted, 3 received, 0% packet loss, time 2223ms
 ```
-<img width="243" height="269" alt="Screenshot 2026-11-26 at 13 03 16" src="https://github.com/user-attachments/assets/eb1ca4b6-618c-45dd-a865-179845741ba4" />
+<img width="396" height="192" alt="Screenshot 2026-11-27 at 10 16 56" src="https://github.com/user-attachments/assets/be8faa59-e5e1-49e2-9252-cd26087f7a58" />
 
 ![Zeruel: ping ke 8.8.8.8 dan Lilith berhasil setelah reload](0ae13bf9-image.png)
 
