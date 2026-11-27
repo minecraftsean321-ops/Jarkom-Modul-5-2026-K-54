@@ -3039,10 +3039,10 @@ Dengan tiga rule di chain `FORWARD` pada Shigeru, yaitu `ESTABLISHED,RELATED →
 Karena `Armisael` (`192.238.4.83/29`) dan `Zeruel` (`192.238.4.82/29`) berada dalam satu segmen jaringan dan satu switch (`Switch-Monolith`), komunikasi langsung antar-keduanya berjalan pada **Layer 2 (switching)** tanpa melewati router `Shigeru`. Oleh karena itu, pemisahan dilakukan di tingkat switch:
 
 1. Membuka menu **Configure** pada node **`Switch-Monolith`** di GNS3.
-2. Mengidentifikasi port yang terhubung ke `Armisael` yaitu interface **`e6`** (**Port 7**).
-3. Mengubah konfigurasi **Port 7** dari `VLAN 1` menjadi **`VLAN 99`** (`access`), sedangkan port menuju `Zeruel` dan uplink `Shigeru` (`eth1`) dibiarkan tetap pada **`VLAN 1`**, lalu menekan **Apply** dan **OK**.
+2. Mengidentifikasi port yang terhubung ke `Armisael` yaitu interface **`e6`** (**Port 6**).
+3. Mengubah konfigurasi **Port 6** dari `VLAN 1` menjadi **`VLAN 99`** (`access`), sedangkan port menuju `Zeruel` dan uplink `Shigeru` (`eth1`) dibiarkan tetap pada **`VLAN 1`**, lalu menekan **Apply** dan **OK**.
 
-> Tambahkan screenshot jendela **Switch-Monolith configuration** (Port 7 pada VLAN 99) di sini.
+<img width="1130" height="450" alt="image" src="https://github.com/user-attachments/assets/6a7873c8-34e3-474d-9c61-212b53bcc607" />
 
 ### 2.2 Isolasi Layer 3 di Router `Shigeru` (`/root/shigeru.sh`)
 
